@@ -1,0 +1,505 @@
+/* Wordle Links - Golf Theme */
+:root {
+  --wl-green-dark: #1a472a;
+  --wl-green-medium: #2d6a4f;
+  --wl-green-light: #52b788;
+  --wl-green-fairway: #40916c;
+  --wl-gold: #d4a843;
+  --wl-sand: #f4e6c8;
+  --wl-sky: #87ceeb;
+  --wl-white: #ffffff;
+  --wl-bg: #f8f9fa;
+
+  /* Wordle tile colors */
+  --wl-correct: #538d4e;
+  --wl-present: #b59f3b;
+  --wl-absent: #3a3a3c;
+  --wl-empty-border: #3a3a3c;
+  --wl-tile-text: #ffffff;
+
+  /* Golf score colors */
+  --wl-eagle: #1a73e8;
+  --wl-birdie: #e63946;
+  --wl-par: #2d6a4f;
+  --wl-bogey: #f4a261;
+  --wl-double-bogey: #e76f51;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: var(--wl-bg);
+}
+
+/* Navbar */
+.navbar-golf {
+  background: linear-gradient(135deg, var(--wl-green-dark), var(--wl-green-medium));
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.navbar-golf .navbar-brand {
+  font-weight: 700;
+  font-size: 1.4rem;
+  letter-spacing: 1px;
+}
+
+/* Hero section */
+.hero-section {
+  position: relative;
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  overflow: hidden;
+}
+
+.hero-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(26,71,42,0.85), rgba(45,106,79,0.75));
+  z-index: 1;
+}
+
+.hero-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-size: cover;
+  background-position: center;
+  z-index: 0;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  padding: 2rem;
+}
+
+/* Wordle Board */
+.wordle-board {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  margin: 1rem auto;
+}
+
+.wordle-row {
+  display: flex;
+  gap: 5px;
+}
+
+.wordle-tile {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  border: 2px solid #d3d6da;
+  color: var(--wl-tile-text);
+  transition: transform 0.15s ease;
+  user-select: none;
+}
+
+.wordle-tile.correct {
+  background-color: var(--wl-correct);
+  border-color: var(--wl-correct);
+}
+
+.wordle-tile.present {
+  background-color: var(--wl-present);
+  border-color: var(--wl-present);
+}
+
+.wordle-tile.absent {
+  background-color: var(--wl-absent);
+  border-color: var(--wl-absent);
+}
+
+.wordle-tile.empty {
+  background-color: transparent;
+  color: #000;
+}
+
+.wordle-tile.has-letter {
+  border-color: #878a8c;
+  animation: pop 0.1s ease-in-out;
+}
+
+@keyframes pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+@keyframes flip {
+  0% { transform: rotateX(0); }
+  50% { transform: rotateX(90deg); }
+  100% { transform: rotateX(0); }
+}
+
+.wordle-tile.flip {
+  animation: flip 0.5s ease;
+}
+
+/* Keyboard */
+.keyboard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: 1rem;
+}
+
+.keyboard-row {
+  display: flex;
+  gap: 4px;
+}
+
+.key-btn {
+  min-width: 36px;
+  height: 52px;
+  border-radius: 6px;
+  border: none;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s;
+  padding: 0 8px;
+}
+
+.key-btn.unused {
+  background-color: #d3d6da;
+  color: #1a1a1b;
+}
+
+.key-btn.correct {
+  background-color: var(--wl-correct);
+  color: white;
+}
+
+.key-btn.present {
+  background-color: var(--wl-present);
+  color: white;
+}
+
+.key-btn.absent {
+  background-color: var(--wl-absent);
+  color: white;
+}
+
+.key-btn.wide {
+  min-width: 60px;
+  font-size: 0.75rem;
+}
+
+.key-btn:active {
+  transform: scale(0.95);
+}
+
+/* Golf Scorecard */
+.scorecard {
+  overflow-x: auto;
+}
+
+.scorecard table {
+  min-width: 100%;
+}
+
+.scorecard th, .scorecard td {
+  text-align: center;
+  padding: 0.35rem 0.5rem;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.scorecard .hole-header {
+  background-color: var(--wl-green-dark);
+  color: white;
+  font-weight: 600;
+}
+
+.scorecard .par-row {
+  background-color: var(--wl-green-light);
+  color: white;
+}
+
+.scorecard .total-col {
+  background-color: var(--wl-green-medium);
+  color: white;
+  font-weight: 700;
+}
+
+.score-eagle { color: var(--wl-eagle); font-weight: 700; }
+.score-birdie { color: var(--wl-birdie); font-weight: 700; }
+.score-par { color: var(--wl-par); font-weight: 600; }
+.score-bogey { color: var(--wl-bogey); font-weight: 600; }
+.score-double-bogey { color: var(--wl-double-bogey); font-weight: 700; }
+
+/* Avatar */
+.avatar-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  border: 2px solid var(--wl-green-dark);
+  flex-shrink: 0;
+}
+
+.avatar-circle.large {
+  width: 80px;
+  height: 80px;
+  font-size: 2.2rem;
+}
+
+.avatar-circle.small {
+  width: 36px;
+  height: 36px;
+  font-size: 1.1rem;
+}
+
+/* Avatar Picker */
+.avatar-picker {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.5rem;
+}
+
+.avatar-option {
+  cursor: pointer;
+  border: 3px solid transparent;
+  border-radius: 12px;
+  padding: 0.5rem;
+  text-align: center;
+  transition: all 0.2s;
+  background: #f8f9fa;
+}
+
+.avatar-option:hover {
+  border-color: var(--wl-green-light);
+  background: #e8f5e9;
+}
+
+.avatar-option.selected {
+  border-color: var(--wl-green-dark);
+  background: #c8e6c9;
+}
+
+.avatar-option .avatar-emoji {
+  font-size: 2rem;
+}
+
+.avatar-option .avatar-label {
+  font-size: 0.65rem;
+  color: #666;
+  margin-top: 2px;
+}
+
+/* Game Card */
+.game-card {
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transition: transform 0.2s, box-shadow 0.2s;
+  overflow: hidden;
+}
+
+.game-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+
+.game-card .card-header {
+  background: linear-gradient(135deg, var(--wl-green-dark), var(--wl-green-medium));
+  color: white;
+  font-weight: 600;
+}
+
+/* Hole Navigation */
+.hole-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+}
+
+.hole-nav .hole-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.85rem;
+  border: 2px solid #dee2e6;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.hole-nav .hole-btn.active {
+  background: var(--wl-green-dark);
+  color: white;
+  border-color: var(--wl-green-dark);
+}
+
+.hole-nav .hole-btn.completed {
+  background: var(--wl-correct);
+  color: white;
+  border-color: var(--wl-correct);
+}
+
+.hole-nav .hole-btn.current {
+  border-color: var(--wl-gold);
+  box-shadow: 0 0 0 2px var(--wl-gold);
+}
+
+/* Invitation Badge */
+.invitation-badge {
+  position: relative;
+}
+
+.invitation-badge .badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 1rem;
+}
+
+.stat-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1rem;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+.stat-card .stat-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--wl-green-dark);
+}
+
+.stat-card .stat-label {
+  font-size: 0.75rem;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Footer */
+.footer-golf {
+  background: var(--wl-green-dark);
+  color: rgba(255,255,255,0.8);
+  padding: 2rem 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 576px) {
+  .wordle-tile {
+    width: 48px;
+    height: 48px;
+    font-size: 1.5rem;
+  }
+
+  .key-btn {
+    min-width: 28px;
+    height: 46px;
+    font-size: 0.75rem;
+    padding: 0 4px;
+  }
+
+  .key-btn.wide {
+    min-width: 48px;
+  }
+
+  .avatar-picker {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .scorecard th, .scorecard td {
+    padding: 0.25rem 0.35rem;
+    font-size: 0.75rem;
+  }
+
+  .hero-section {
+    min-height: 50vh;
+  }
+}
+
+@media (max-width: 370px) {
+  .wordle-tile {
+    width: 42px;
+    height: 42px;
+    font-size: 1.3rem;
+  }
+
+  .key-btn {
+    min-width: 24px;
+    height: 40px;
+    font-size: 0.7rem;
+  }
+
+  .avatar-picker {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Page transitions */
+.page-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+/* Loading spinner */
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+}
+
+/* Toast / Notification */
+.game-toast {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1050;
+  min-width: 200px;
+  text-align: center;
+}

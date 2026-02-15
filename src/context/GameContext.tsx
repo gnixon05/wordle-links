@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { Game, RoundConfig, RoundResult, HoleResult, HoleConfig, GameVisibility, ThemeOption } from '../types';
+import { Game, RoundConfig, RoundResult, HoleResult, HoleConfig, GameVisibility, ThemeOption, StartWordMode } from '../types';
 import {
   getGames,
   saveGame,
@@ -12,8 +12,10 @@ import {
   getUserRoundResult,
   getGameWords,
   saveGameWords,
+  getGameStartWords,
+  saveGameStartWords,
 } from '../utils/storage';
-import { pickDailyWord, getTodayDateString } from '../utils/gameLogic';
+import { pickDailyWord, pickStartWord, getTodayDateString } from '../utils/gameLogic';
 import { useAuth } from './AuthContext';
 
 interface CreateGameData {
@@ -25,6 +27,8 @@ interface CreateGameData {
     holes: HoleConfig[];
     frontNineTheme: ThemeOption;
     backNineTheme: ThemeOption;
+    startWordMode: StartWordMode;
+    startWordTheme?: ThemeOption;
   };
 }
 
@@ -36,6 +40,7 @@ interface GameContextType {
   deleteGame: (gameId: string) => void;
   getGame: (gameId: string) => Game | undefined;
   getWordsForRound: (gameId: string, roundNumber: number) => string[];
+  getStartWordsForRound: (gameId: string, roundNumber: number) => string[];
   submitHoleResult: (gameId: string, roundNumber: number, holeResult: HoleResult) => void;
   getUserResult: (gameId: string, roundNumber: number, userId: string) => RoundResult | undefined;
   getGameResults: (gameId: string) => RoundResult[];
@@ -66,6 +71,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const createGame = useCallback((data: CreateGameData): Game => {
     if (!user) throw new Error('Must be logged in to create a game');
 
+    const startWordMode = data.roundConfig.startWordMode || 'none';
+    const startWordTheme = data.roundConfig.startWordTheme;
+
     const game: Game = {
       id: uuidv4(),
       name: data.name,
@@ -80,12 +88,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
         frontNineTheme: data.roundConfig.frontNineTheme,
         backNineTheme: data.roundConfig.backNineTheme,
         startDate: new Date().toISOString(),
+        startWordMode,
+        startWordTheme,
       }],
       currentRound: 1,
       createdAt: new Date().toISOString(),
     };
 
-    // Generate words for round 1
+    // Generate target words for round 1
     const round = game.rounds[0];
     const words = round.holes.map((hole, idx) => {
       const theme = idx < 9
@@ -101,8 +111,29 @@ export function GameProvider({ children }: { children: ReactNode }) {
       );
     });
 
+    // Generate start words if mode is not 'none'
+    let startWords: string[] = [];
+    if (startWordMode !== 'none') {
+      startWords = round.holes.map((hole, idx) => {
+        const theme = startWordMode === 'theme'
+          ? (startWordTheme || (idx < 9 ? (round.frontNineTheme || 'golf') : (round.backNineTheme || 'golf')))
+          : 'golf'; // fallback
+        return pickStartWord(
+          game.id,
+          hole.holeNumber,
+          hole.par,
+          theme,
+          words[idx],
+          hole.customStartWord
+        );
+      });
+    }
+
     saveGame(game);
     saveGameWords(game.id, 1, words);
+    if (startWords.length > 0) {
+      saveGameStartWords(game.id, 1, startWords);
+    }
     refreshGames();
     return game;
   }, [user, refreshGames]);
@@ -135,6 +166,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const getWordsForRound = useCallback((gameId: string, roundNumber: number): string[] => {
     return getGameWords(gameId, roundNumber);
+  }, []);
+
+  const getStartWordsForRound = useCallback((gameId: string, roundNumber: number): string[] => {
+    return getGameStartWords(gameId, roundNumber);
   }, []);
 
   const submitHoleResult = useCallback((gameId: string, roundNumber: number, holeResult: HoleResult) => {
@@ -206,7 +241,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     game.rounds.push(roundConfig);
     game.currentRound = roundConfig.roundNumber;
 
-    // Generate words for the new round
+    // Generate target words for the new round
     const words = roundConfig.holes.map((hole, idx) => {
       const theme = idx < 9
         ? (roundConfig.frontNineTheme || 'golf')
@@ -221,8 +256,30 @@ export function GameProvider({ children }: { children: ReactNode }) {
       );
     });
 
+    // Generate start words if mode is not 'none'
+    const startWordMode = roundConfig.startWordMode || 'none';
+    let startWords: string[] = [];
+    if (startWordMode !== 'none') {
+      startWords = roundConfig.holes.map((hole, idx) => {
+        const theme = startWordMode === 'theme'
+          ? (roundConfig.startWordTheme || (idx < 9 ? (roundConfig.frontNineTheme || 'golf') : (roundConfig.backNineTheme || 'golf')))
+          : 'golf';
+        return pickStartWord(
+          game.id,
+          hole.holeNumber,
+          hole.par,
+          theme,
+          words[idx],
+          hole.customStartWord
+        );
+      });
+    }
+
     saveGame(game);
     saveGameWords(game.id, roundConfig.roundNumber, words);
+    if (startWords.length > 0) {
+      saveGameStartWords(game.id, roundConfig.roundNumber, startWords);
+    }
     refreshGames();
   }, [refreshGames]);
 
@@ -281,6 +338,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       deleteGame: handleDeleteGame,
       getGame,
       getWordsForRound,
+      getStartWordsForRound,
       submitHoleResult,
       getUserResult,
       getGameResults,

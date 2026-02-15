@@ -1,4 +1,4 @@
-import { GuessRow, HolePar, LetterGuess, LetterStatus, HoleResult, KeyboardKey } from '../types';
+import { GuessRow, HolePar, LetterGuess, LetterStatus, HoleResult, KeyboardKey, ThemeOption } from '../types';
 import { getWordListByLength, getThemedWords } from '../data/wordLists';
 
 /**
@@ -269,4 +269,97 @@ export function pickDailyWord(
   const seed = `${dateStr}-${gameId}-${holeNumber}`;
   const index = Math.floor(seededRandom(seed) * words.length);
   return words[index];
+}
+
+/**
+ * Parse a date string (YYYY-MM-DD or ISO) to a local-midnight Date object
+ */
+export function parseLocalDate(dateStr: string): Date {
+  // Handle ISO strings by extracting just the date part
+  const datePart = dateStr.split('T')[0];
+  const [year, month, day] = datePart.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/**
+ * Get the date a specific hole becomes available.
+ * Hole 1 is available on startDate, hole 2 on startDate + 1 day, etc.
+ */
+export function getHoleAvailableDate(startDate: string, holeNumber: number): Date {
+  const start = parseLocalDate(startDate);
+  start.setDate(start.getDate() + (holeNumber - 1));
+  return start;
+}
+
+/**
+ * Get the availability status of a hole for today.
+ * Returns 'available' if today is the hole's day,
+ * 'locked' if the day hasn't arrived yet,
+ * 'past' if the day has already passed.
+ */
+export function getHoleAvailability(
+  startDate: string,
+  holeNumber: number
+): 'available' | 'locked' | 'past' {
+  const today = parseLocalDate(getTodayDateString());
+  const holeDate = getHoleAvailableDate(startDate, holeNumber);
+
+  const todayTime = today.getTime();
+  const holeTime = holeDate.getTime();
+
+  if (todayTime === holeTime) return 'available';
+  if (todayTime < holeTime) return 'locked';
+  return 'past';
+}
+
+/**
+ * Format a date for display (e.g., "Feb 15")
+ */
+export function formatHoleDate(startDate: string, holeNumber: number): string {
+  const date = getHoleAvailableDate(startDate, holeNumber);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+/**
+ * Get the hole number that is available today (if any)
+ */
+export function getTodaysHoleNumber(startDate: string, totalHoles: number): number | null {
+  for (let i = 1; i <= totalHoles; i++) {
+    if (getHoleAvailability(startDate, i) === 'available') {
+      return i;
+    }
+  }
+  return null;
+}
+
+/**
+ * Pick a start word for a hole from the given theme.
+ * The start word is the forced first guess (different from the target word).
+ * Uses a different seed than target word to avoid collisions.
+ */
+export function pickStartWord(
+  gameId: string,
+  holeNumber: number,
+  par: HolePar,
+  theme: ThemeOption,
+  targetWord: string,
+  customStartWord?: string
+): string {
+  if (customStartWord) return customStartWord.toUpperCase();
+
+  const wordLength = getWordLengthForPar(par);
+  const words = getThemedWords(theme, wordLength);
+  const seed = `startword-${gameId}-${holeNumber}`;
+  let index = Math.floor(seededRandom(seed) * words.length);
+  let word = words[index];
+
+  // Ensure start word is different from target word
+  let attempts = 0;
+  while (word === targetWord.toUpperCase() && attempts < words.length) {
+    index = (index + 1) % words.length;
+    word = words[index];
+    attempts++;
+  }
+
+  return word;
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
@@ -17,6 +17,9 @@ import {
   buildKeyboardState,
   isGuessCorrect,
   isValidWord,
+  getHoleAvailability,
+  getTodaysHoleNumber,
+  formatHoleDate,
 } from '../utils/gameLogic';
 
 export default function GamePlayPage() {
@@ -24,7 +27,7 @@ export default function GamePlayPage() {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const {
-    getGame, getWordsForRound, submitHoleResult, getUserResult,
+    getGame, getWordsForRound, getStartWordsForRound, submitHoleResult, getUserResult,
     isRoundCompleteForAllPlayers,
   } = useGame();
 
@@ -35,21 +38,44 @@ export default function GamePlayPage() {
   const [solved, setSolved] = useState(false);
   const [message, setMessage] = useState('');
   const [showMessage, setShowMessage] = useState(false);
+  const [startWordApplied, setStartWordApplied] = useState(false);
 
   const game = gameId ? getGame(gameId) : undefined;
   const roundNumber = game?.currentRound || 1;
   const round = game?.rounds.find(r => r.roundNumber === roundNumber);
   const words = gameId ? getWordsForRound(gameId, roundNumber) : [];
+  const startWords = gameId ? getStartWordsForRound(gameId, roundNumber) : [];
   const userResult = gameId && user ? getUserResult(gameId, roundNumber, user.id) : undefined;
+  const startDate = round?.startDate || '';
 
   const holeConfig = round?.holes.find(h => h.holeNumber === currentHole);
   const par: HolePar = holeConfig?.par || 4;
   const wordLength = getWordLengthForPar(par);
   const maxGuesses = getMaxGuessesForPar(par);
   const targetWord = words[currentHole - 1] || '';
+  const startWord = startWords[currentHole - 1] || '';
+  const hasStartWord = startWord.length > 0 && (round?.startWordMode || 'none') !== 'none';
 
   const completedHoles: HoleResult[] = userResult?.holes || [];
   const currentHoleResult = completedHoles.find(h => h.holeNumber === currentHole);
+
+  // Check hole availability
+  const holeAvailability = startDate ? getHoleAvailability(startDate, currentHole) : 'available';
+  const isHoleLocked = holeAvailability === 'locked';
+  const isHolePast = holeAvailability === 'past' && !currentHoleResult;
+  const isHolePlayable = holeAvailability === 'available' && !currentHoleResult;
+
+  // Auto-navigate to today's hole on mount
+  const hasAutoNavigated = useRef(false);
+  useEffect(() => {
+    if (round && !hasAutoNavigated.current) {
+      hasAutoNavigated.current = true;
+      const todaysHole = getTodaysHoleNumber(startDate, round.holes.length);
+      if (todaysHole !== null) {
+        setCurrentHole(todaysHole);
+      }
+    }
+  }, [round, startDate]);
 
   // Load existing result for current hole
   useEffect(() => {
@@ -57,13 +83,60 @@ export default function GamePlayPage() {
       setGuesses(currentHoleResult.guesses);
       setGameOver(true);
       setSolved(currentHoleResult.solved);
+      setStartWordApplied(true);
     } else {
       setGuesses([]);
       setGameOver(false);
       setSolved(false);
       setCurrentGuess('');
+      setStartWordApplied(false);
     }
   }, [currentHole, currentHoleResult]);
+
+  // Auto-apply start word as first guess when hole is playable and has a start word
+  const startWordRef = useRef(false);
+  useEffect(() => {
+    if (
+      hasStartWord &&
+      isHolePlayable &&
+      !startWordApplied &&
+      !currentHoleResult &&
+      guesses.length === 0 &&
+      targetWord &&
+      !startWordRef.current
+    ) {
+      startWordRef.current = true;
+      // Auto-evaluate the start word as the first guess
+      const result = evaluateGuess(startWord, targetWord);
+      const newGuesses = [result];
+      setGuesses(newGuesses);
+      setStartWordApplied(true);
+
+      const correct = isGuessCorrect(result);
+      if (correct) {
+        // Unlikely but handle: start word matches target
+        const score = calculateHoleScore(true, 1, par);
+        const holeResult: HoleResult = {
+          holeNumber: currentHole,
+          guesses: newGuesses,
+          targetWord,
+          solved: true,
+          score,
+        };
+        if (gameId && user) {
+          submitHoleResult(gameId, roundNumber, holeResult);
+        }
+        setGameOver(true);
+        setSolved(true);
+      }
+    }
+    // Reset ref when hole changes
+    return () => { startWordRef.current = false; };
+  }, [
+    hasStartWord, isHolePlayable, startWordApplied, currentHoleResult,
+    guesses.length, targetWord, startWord, par, currentHole, gameId,
+    user, roundNumber, submitHoleResult,
+  ]);
 
   const displayMessage = useCallback((msg: string) => {
     setMessage(msg);
@@ -72,19 +145,19 @@ export default function GamePlayPage() {
   }, []);
 
   const handleKeyPress = useCallback((key: string) => {
-    if (gameOver) return;
+    if (gameOver || isHoleLocked || isHolePast) return;
     if (currentGuess.length < wordLength) {
       setCurrentGuess(prev => prev + key);
     }
-  }, [gameOver, currentGuess, wordLength]);
+  }, [gameOver, isHoleLocked, isHolePast, currentGuess, wordLength]);
 
   const handleBackspace = useCallback(() => {
-    if (gameOver) return;
+    if (gameOver || isHoleLocked || isHolePast) return;
     setCurrentGuess(prev => prev.slice(0, -1));
-  }, [gameOver]);
+  }, [gameOver, isHoleLocked, isHolePast]);
 
   const handleEnter = useCallback(() => {
-    if (gameOver || !gameId || !user) return;
+    if (gameOver || !gameId || !user || isHoleLocked || isHolePast) return;
 
     if (currentGuess.length !== wordLength) {
       displayMessage('Not enough letters');
@@ -127,7 +200,7 @@ export default function GamePlayPage() {
   }, [
     gameOver, gameId, user, currentGuess, wordLength, targetWord,
     guesses, maxGuesses, par, currentHole, roundNumber,
-    submitHoleResult, displayMessage,
+    submitHoleResult, displayMessage, isHoleLocked, isHolePast,
   ]);
 
   // Physical keyboard handler
@@ -177,9 +250,10 @@ export default function GamePlayPage() {
   const userRoundComplete = userResult?.completedAt != null;
   const keys = buildKeyboardState(guesses);
 
-  // Find next unplayed hole
+  // Find next unplayed hole that is available today
   const nextUnplayedHole = round.holes.find(
-    h => !completedHoles.some(ch => ch.holeNumber === h.holeNumber)
+    h => !completedHoles.some(ch => ch.holeNumber === h.holeNumber) &&
+      getHoleAvailability(startDate, h.holeNumber) === 'available'
   );
 
   return (
@@ -207,72 +281,101 @@ export default function GamePlayPage() {
           currentHole={currentHole}
           completedHoles={completedHoles}
           onSelectHole={setCurrentHole}
+          startDate={startDate}
         />
       </div>
+
+      {/* Locked Hole Notice */}
+      {isHoleLocked && (
+        <div className="alert alert-warning text-center">
+          <strong>Hole {currentHole} is locked.</strong>
+          <br />
+          This hole unlocks on {formatHoleDate(startDate, currentHole)}.
+          Each hole becomes available one day at a time starting at 12:00 AM.
+        </div>
+      )}
+
+      {/* Past Hole Notice */}
+      {isHolePast && (
+        <div className="alert alert-secondary text-center">
+          <strong>Hole {currentHole} has expired.</strong>
+          <br />
+          This hole was available on {formatHoleDate(startDate, currentHole)} and can no longer be played.
+        </div>
+      )}
 
       {/* Current Hole Info */}
-      <div className="text-center mb-2">
-        <h5 className="mb-1">
-          Hole {currentHole}
-          <span className="badge bg-secondary ms-2">Par {par}</span>
-          <small className="text-muted ms-2">
-            ({wordLength} letters, {maxGuesses} guesses)
-          </small>
-        </h5>
-      </div>
-
-      {/* Toast Message */}
-      {showMessage && (
-        <div className="game-toast">
-          <div className="alert alert-dark py-2 px-4 fw-bold mb-0">
-            {message}
+      {!isHoleLocked && !isHolePast && (
+        <>
+          <div className="text-center mb-2">
+            <h5 className="mb-1">
+              Hole {currentHole}
+              <span className="badge bg-secondary ms-2">Par {par}</span>
+              <small className="text-muted ms-2">
+                ({wordLength} letters, {maxGuesses} guesses)
+              </small>
+            </h5>
+            {hasStartWord && !currentHoleResult && (
+              <small className="text-info">
+                Start word: <strong>{startWord}</strong> (auto-played as your first guess)
+              </small>
+            )}
           </div>
-        </div>
-      )}
 
-      {/* Wordle Board */}
-      <WordleBoard
-        guesses={guesses}
-        currentGuess={currentGuess}
-        maxGuesses={maxGuesses}
-        wordLength={wordLength}
-      />
-
-      {/* Result for this hole */}
-      {gameOver && (
-        <div className="text-center mt-2 mb-2">
-          {solved ? (
-            <span className="badge bg-success fs-6 px-3 py-2">
-              {getScoreName(guesses.length, par)} &mdash; {guesses.length} strokes
-            </span>
-          ) : (
-            <span className="badge bg-danger fs-6 px-3 py-2">
-              DNF &mdash; The word was <strong>{targetWord}</strong>
-            </span>
-          )}
-
-          {nextUnplayedHole && nextUnplayedHole.holeNumber !== currentHole && (
-            <div className="mt-2">
-              <button
-                className="btn btn-success btn-sm"
-                onClick={() => setCurrentHole(nextUnplayedHole.holeNumber)}
-              >
-                Next Hole (#{nextUnplayedHole.holeNumber})
-              </button>
+          {/* Toast Message */}
+          {showMessage && (
+            <div className="game-toast">
+              <div className="alert alert-dark py-2 px-4 fw-bold mb-0">
+                {message}
+              </div>
             </div>
           )}
-        </div>
-      )}
 
-      {/* Keyboard */}
-      {!currentHoleResult && (
-        <Keyboard
-          keys={keys}
-          onKeyPress={handleKeyPress}
-          onEnter={handleEnter}
-          onBackspace={handleBackspace}
-          disabled={gameOver}
-        />
+          {/* Wordle Board */}
+          <WordleBoard
+            guesses={guesses}
+            currentGuess={currentGuess}
+            maxGuesses={maxGuesses}
+            wordLength={wordLength}
+          />
+
+          {/* Result for this hole */}
+          {gameOver && (
+            <div className="text-center mt-2 mb-2">
+              {solved ? (
+                <span className="badge bg-success fs-6 px-3 py-2">
+                  {getScoreName(guesses.length, par)} &mdash; {guesses.length} strokes
+                </span>
+              ) : (
+                <span className="badge bg-danger fs-6 px-3 py-2">
+                  DNF &mdash; The word was <strong>{targetWord}</strong>
+                </span>
+              )}
+
+              {nextUnplayedHole && nextUnplayedHole.holeNumber !== currentHole && (
+                <div className="mt-2">
+                  <button
+                    className="btn btn-success btn-sm"
+                    onClick={() => setCurrentHole(nextUnplayedHole.holeNumber)}
+                  >
+                    Next Hole (#{nextUnplayedHole.holeNumber})
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Keyboard */}
+          {!currentHoleResult && (
+            <Keyboard
+              keys={keys}
+              onKeyPress={handleKeyPress}
+              onEnter={handleEnter}
+              onBackspace={handleBackspace}
+              disabled={gameOver}
+            />
+          )}
+        </>
       )}
 
       {/* Round Complete Notice */}

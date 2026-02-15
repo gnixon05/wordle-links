@@ -1,13 +1,15 @@
 import { HoleConfig, HoleResult } from '../../types';
+import { getHoleAvailability, formatHoleDate } from '../../utils/gameLogic';
 
 interface HoleNavigatorProps {
   holes: HoleConfig[];
   currentHole: number;
   completedHoles: HoleResult[];
   onSelectHole: (holeNumber: number) => void;
+  startDate: string;
 }
 
-export default function HoleNavigator({ holes, currentHole, completedHoles, onSelectHole }: HoleNavigatorProps) {
+export default function HoleNavigator({ holes, currentHole, completedHoles, onSelectHole, startDate }: HoleNavigatorProps) {
   const completedNumbers = new Set(completedHoles.map(h => h.holeNumber));
 
   return (
@@ -20,20 +22,38 @@ export default function HoleNavigator({ holes, currentHole, completedHoles, onSe
         {holes.map((hole) => {
           const isCompleted = completedNumbers.has(hole.holeNumber);
           const isCurrent = hole.holeNumber === currentHole;
+          const availability = getHoleAvailability(startDate, hole.holeNumber);
+          const isLocked = availability === 'locked';
+          const isPast = availability === 'past' && !isCompleted;
+          const dateLabel = formatHoleDate(startDate, hole.holeNumber);
+
           const classes = [
             'hole-btn',
             isCompleted ? 'completed' : '',
             isCurrent ? 'active current' : '',
+            isLocked ? 'locked' : '',
+            isPast ? 'past' : '',
           ].filter(Boolean).join(' ');
 
           return (
             <button
               key={hole.holeNumber}
               className={classes}
-              onClick={() => onSelectHole(hole.holeNumber)}
-              title={`Hole ${hole.holeNumber} (Par ${hole.par})`}
+              onClick={() => {
+                if (!isLocked && !isPast) {
+                  onSelectHole(hole.holeNumber);
+                }
+              }}
+              disabled={isLocked || isPast}
+              title={
+                isLocked
+                  ? `Hole ${hole.holeNumber} - Unlocks ${dateLabel}`
+                  : isPast
+                    ? `Hole ${hole.holeNumber} - Expired (was ${dateLabel})`
+                    : `Hole ${hole.holeNumber} (Par ${hole.par}) - ${dateLabel}`
+              }
             >
-              {hole.holeNumber}
+              {isLocked ? '🔒' : isPast ? '—' : hole.holeNumber}
             </button>
           );
         })}

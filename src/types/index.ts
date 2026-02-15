@@ -28,12 +28,15 @@ export type HolePar = 3 | 4 | 5;
 export interface HoleConfig {
   holeNumber: number; // 1-18
   par: HolePar;
-  customWord?: string; // if manually specified
+  customWord?: string; // if manually specified (target word)
+  customStartWord?: string; // if manually specified (forced first guess)
 }
 
 export type GameVisibility = 'public' | 'private';
 
 export type ThemeOption = 'golf' | 'sports' | 'nature' | 'food' | 'animals' | 'random' | 'custom';
+
+export type StartWordMode = 'theme' | 'custom' | 'none';
 
 export interface RoundConfig {
   roundNumber: number;
@@ -41,6 +44,8 @@ export interface RoundConfig {
   frontNineTheme?: ThemeOption;
   backNineTheme?: ThemeOption;
   startDate: string; // ISO date when round begins
+  startWordMode?: StartWordMode; // how first guess is determined
+  startWordTheme?: ThemeOption; // theme for generating start words (if mode is 'theme')
 }
 
 export interface Game {

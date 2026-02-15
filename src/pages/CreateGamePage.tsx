@@ -2,7 +2,7 @@ import { useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
-import { HoleConfig, HolePar, ThemeOption, GameVisibility } from '../types';
+import { HoleConfig, HolePar, ThemeOption, GameVisibility, StartWordMode } from '../types';
 import { getDisplayName } from '../utils/gameLogic';
 
 const THEME_OPTIONS: { value: ThemeOption; label: string }[] = [
@@ -35,6 +35,8 @@ export default function CreateGamePage() {
   const [holes, setHoles] = useState<HoleConfig[]>(createDefaultHoles());
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [wordMode, setWordMode] = useState<'theme' | 'custom' | 'mixed'>('theme');
+  const [startWordMode, setStartWordMode] = useState<StartWordMode>('none');
+  const [startWordTheme, setStartWordTheme] = useState<ThemeOption>('golf');
   const [error, setError] = useState('');
 
   if (!isAuthenticated || !user) {
@@ -62,6 +64,12 @@ export default function CreateGamePage() {
     ));
   };
 
+  const updateHoleStartWord = (holeNumber: number, word: string) => {
+    setHoles(prev => prev.map(h =>
+      h.holeNumber === holeNumber ? { ...h, customStartWord: word.toUpperCase() || undefined } : h
+    ));
+  };
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     setError('');
@@ -86,6 +94,21 @@ export default function CreateGamePage() {
       }
     }
 
+    // Validate custom start words if in custom start word mode
+    if (startWordMode === 'custom') {
+      for (const hole of holes) {
+        if (!hole.customStartWord) {
+          setError(`Please enter a start word for Hole ${hole.holeNumber} or switch start word to theme mode.`);
+          return;
+        }
+        const expectedLength = hole.par === 3 ? 4 : hole.par === 5 ? 6 : 5;
+        if (hole.customStartWord.length !== expectedLength) {
+          setError(`Hole ${hole.holeNumber} start word must be ${expectedLength} letters (Par ${hole.par}).`);
+          return;
+        }
+      }
+    }
+
     const game = createGame({
       name: gameName.trim(),
       visibility,
@@ -95,6 +118,8 @@ export default function CreateGamePage() {
         holes,
         frontNineTheme: frontTheme,
         backNineTheme: backTheme,
+        startWordMode,
+        startWordTheme: startWordMode === 'theme' ? startWordTheme : undefined,
       },
     });
 
@@ -285,6 +310,74 @@ export default function CreateGamePage() {
                   </div>
                 )}
 
+                {/* Start Word Settings */}
+                <div className="mb-3 p-3 border rounded bg-light">
+                  <label className="form-label fw-semibold">Start Word (Forced First Guess)</label>
+                  <div className="form-text mb-2">
+                    Choose how the first guess is determined for each hole. Players will have this word
+                    automatically played as their opening guess.
+                  </div>
+                  <div className="d-flex gap-3 flex-wrap">
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="startWordMode"
+                        id="swNone"
+                        checked={startWordMode === 'none'}
+                        onChange={() => setStartWordMode('none')}
+                      />
+                      <label className="form-check-label" htmlFor="swNone">
+                        None (players choose their own first guess)
+                      </label>
+                    </div>
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="startWordMode"
+                        id="swTheme"
+                        checked={startWordMode === 'theme'}
+                        onChange={() => setStartWordMode('theme')}
+                      />
+                      <label className="form-check-label" htmlFor="swTheme">
+                        From category (auto-generate from a theme)
+                      </label>
+                    </div>
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="startWordMode"
+                        id="swCustom"
+                        checked={startWordMode === 'custom'}
+                        onChange={() => setStartWordMode('custom')}
+                      />
+                      <label className="form-check-label" htmlFor="swCustom">
+                        Custom (specify a start word for each hole)
+                      </label>
+                    </div>
+                  </div>
+
+                  {startWordMode === 'theme' && (
+                    <div className="mt-3" style={{ maxWidth: '300px' }}>
+                      <label className="form-label fw-semibold">Start Word Category</label>
+                      <select
+                        className="form-select"
+                        value={startWordTheme}
+                        onChange={e => setStartWordTheme(e.target.value as ThemeOption)}
+                      >
+                        {THEME_OPTIONS.map(t => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                      <div className="form-text">
+                        A word from this category will be auto-played as the first guess on each hole.
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <label className="form-label fw-semibold mb-0">Hole Configuration</label>
                   <button
@@ -306,6 +399,7 @@ export default function CreateGamePage() {
                           <th>Word Length</th>
                           <th>Guesses</th>
                           {(wordMode === 'custom' || wordMode === 'mixed') && <th>Custom Word</th>}
+                          {startWordMode === 'custom' && <th>Start Word</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -346,6 +440,19 @@ export default function CreateGamePage() {
                                   />
                                 </td>
                               )}
+                              {startWordMode === 'custom' && (
+                                <td>
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    style={{ width: '100px' }}
+                                    maxLength={wordLen}
+                                    value={hole.customStartWord || ''}
+                                    onChange={e => updateHoleStartWord(hole.holeNumber, e.target.value)}
+                                    placeholder="Required"
+                                  />
+                                </td>
+                              )}
                             </tr>
                           );
                         })}
@@ -358,8 +465,23 @@ export default function CreateGamePage() {
                   <div className="alert alert-info small mb-0">
                     All 18 holes default to Par 4 (5-letter words, 6 guesses).
                     Click "Customize Holes" to change individual holes to Par 3 or Par 5.
+                    {startWordMode === 'custom' && (
+                      <> You must expand this section to enter custom start words.</>
+                    )}
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Daily Schedule Info */}
+            <div className="card game-card mb-4">
+              <div className="card-header">Daily Schedule</div>
+              <div className="card-body">
+                <div className="alert alert-info small mb-0">
+                  Each hole unlocks one per day at 12:00 AM local time. Hole 1 is available on the day
+                  the game is created, Hole 2 on the next day, and so on through all 18 holes.
+                  Holes can only be played on their designated day.
+                </div>
               </div>
             </div>
 

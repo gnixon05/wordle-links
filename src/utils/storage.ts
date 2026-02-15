@@ -6,6 +6,7 @@ const STORAGE_KEYS = {
   GAMES: 'wl_games',
   ROUND_RESULTS: 'wl_round_results',
   GAME_WORDS: 'wl_game_words',
+  GAME_START_WORDS: 'wl_game_start_words',
 } as const;
 
 function getItem<T>(key: string, fallback: T): T {
@@ -129,6 +130,19 @@ export function saveGameWords(gameId: string, roundNumber: number, words: string
   const all = getItem<Record<string, string[]>>(STORAGE_KEYS.GAME_WORDS, {});
   all[`${gameId}_${roundNumber}`] = words;
   setItem(STORAGE_KEYS.GAME_WORDS, all);
+}
+
+// --- Game Start Words (forced first guesses, stored separately) ---
+
+export function getGameStartWords(gameId: string, roundNumber: number): string[] {
+  const all = getItem<Record<string, string[]>>(STORAGE_KEYS.GAME_START_WORDS, {});
+  return all[`${gameId}_${roundNumber}`] || [];
+}
+
+export function saveGameStartWords(gameId: string, roundNumber: number, words: string[]): void {
+  const all = getItem<Record<string, string[]>>(STORAGE_KEYS.GAME_START_WORDS, {});
+  all[`${gameId}_${roundNumber}`] = words;
+  setItem(STORAGE_KEYS.GAME_START_WORDS, all);
 }
 
 // --- Simple password hashing (not cryptographically secure, for demo only) ---

@@ -376,6 +376,28 @@ body {
   box-shadow: 0 0 0 2px var(--wl-gold);
 }
 
+.hole-nav .hole-btn.locked {
+  background: #e9ecef;
+  color: #adb5bd;
+  border-color: #dee2e6;
+  cursor: not-allowed;
+  opacity: 0.7;
+  font-size: 0.7rem;
+}
+
+.hole-nav .hole-btn.past {
+  background: #f8d7da;
+  color: #842029;
+  border-color: #f5c2c7;
+  cursor: not-allowed;
+  opacity: 0.6;
+  font-size: 0.75rem;
+}
+
+.hole-nav .hole-btn:disabled {
+  pointer-events: none;
+}
+
 /* Invitation Badge */
 .invitation-badge {
   position: relative;

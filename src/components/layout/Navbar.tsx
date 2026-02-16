@@ -1,11 +1,13 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useGame } from '../../context/GameContext';
+import { useTheme } from '../../context/ThemeContext';
 import Avatar from '../common/Avatar';
 
 export default function Navbar() {
   const { user, isAuthenticated, logout, displayName } = useAuth();
   const { getUserInvitations } = useGame();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const invitations = isAuthenticated ? getUserInvitations() : [];
@@ -67,6 +69,11 @@ export default function Navbar() {
                       </span>
                     )}
                   </Link>
+                </li>
+                <li className="nav-item me-2">
+                  <button className="theme-toggle" onClick={toggleTheme} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}>
+                    {theme === 'light' ? '\u263E' : '\u2600'}
+                  </button>
                 </li>
                 <li className="nav-item">
                   <button className="btn btn-outline-light btn-sm" onClick={handleLogout}>

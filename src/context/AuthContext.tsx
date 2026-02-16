@@ -19,7 +19,7 @@ interface AuthContextType {
   login: (email: string, password: string) => { success: boolean; error?: string };
   signup: (data: SignupData) => { success: boolean; error?: string };
   logout: () => void;
-  updateProfile: (updates: Partial<Pick<User, 'firstName' | 'lastName' | 'nickname' | 'avatar'>>) => void;
+  updateProfile: (updates: Partial<Pick<User, 'firstName' | 'lastName' | 'nickname' | 'avatar' | 'theme'>>) => void;
   displayName: string;
   allUsers: User[];
   refreshUsers: () => void;
@@ -82,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       passwordHash: hashPassword(data.password),
       nickname: data.nickname || undefined,
       avatar: data.avatar,
+      theme: 'light',
       createdAt: new Date().toISOString(),
     };
 
@@ -97,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentUserId(null);
   }, []);
 
-  const updateProfile = useCallback((updates: Partial<Pick<User, 'firstName' | 'lastName' | 'nickname' | 'avatar'>>) => {
+  const updateProfile = useCallback((updates: Partial<Pick<User, 'firstName' | 'lastName' | 'nickname' | 'avatar' | 'theme'>>) => {
     if (!user) return;
     const updated = { ...user, ...updates };
     saveUser(updated);

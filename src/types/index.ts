@@ -7,6 +7,8 @@ export interface LetterGuess {
 
 export type GuessRow = LetterGuess[];
 
+export type ThemePreference = 'light' | 'dark';
+
 export interface User {
   id: string;
   firstName: string;
@@ -15,6 +17,7 @@ export interface User {
   passwordHash: string;
   nickname?: string;
   avatar: AvatarChoice;
+  theme: ThemePreference;
   createdAt: string;
 }
 

@@ -23,6 +23,210 @@
   --wl-par: #2d6a4f;
   --wl-bogey: #f4a261;
   --wl-double-bogey: #e76f51;
+
+  /* Semantic tokens (light defaults) */
+  --wl-body-bg: #f8f9fa;
+  --wl-body-text: #212529;
+  --wl-card-bg: #ffffff;
+  --wl-card-border: rgba(0,0,0,0.08);
+  --wl-input-bg: #ffffff;
+  --wl-input-border: #ced4da;
+  --wl-input-text: #212529;
+  --wl-muted-text: #6c757d;
+  --wl-table-hover: rgba(0,0,0,0.04);
+  --wl-table-header-bg: #f8f9fa;
+}
+
+/* Dark Mode */
+[data-theme="dark"] {
+  --wl-green-dark: #1b5e35;
+  --wl-green-medium: #2d6a4f;
+  --wl-green-light: #52b788;
+  --wl-gold: #e0b84e;
+  --wl-sand: #3d3529;
+  --wl-sky: #4a7a99;
+  --wl-white: #e0e0e0;
+  --wl-bg: #121212;
+
+  --wl-correct: #538d4e;
+  --wl-present: #b59f3b;
+  --wl-absent: #3a3a3c;
+  --wl-empty-border: #565656;
+  --wl-tile-text: #ffffff;
+
+  --wl-eagle: #5b9cf5;
+  --wl-birdie: #f06070;
+  --wl-par: #52b788;
+  --wl-bogey: #f4a261;
+  --wl-double-bogey: #e76f51;
+
+  --wl-body-bg: #121212;
+  --wl-body-text: #e0e0e0;
+  --wl-card-bg: #1e1e1e;
+  --wl-card-border: rgba(255,255,255,0.08);
+  --wl-input-bg: #2a2a2a;
+  --wl-input-border: #444;
+  --wl-input-text: #e0e0e0;
+  --wl-muted-text: #9e9e9e;
+  --wl-table-hover: rgba(255,255,255,0.05);
+  --wl-table-header-bg: #1a1a1a;
+}
+
+[data-theme="dark"] body {
+  background-color: var(--wl-body-bg);
+  color: var(--wl-body-text);
+}
+
+[data-theme="dark"] .card,
+[data-theme="dark"] .game-card {
+  background-color: var(--wl-card-bg);
+  color: var(--wl-body-text);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+[data-theme="dark"] .form-control,
+[data-theme="dark"] .form-select {
+  background-color: var(--wl-input-bg);
+  border-color: var(--wl-input-border);
+  color: var(--wl-input-text);
+}
+
+[data-theme="dark"] .form-control:focus,
+[data-theme="dark"] .form-select:focus {
+  background-color: var(--wl-input-bg);
+  color: var(--wl-input-text);
+  border-color: var(--wl-green-light);
+  box-shadow: 0 0 0 0.2rem rgba(82, 183, 136, 0.25);
+}
+
+[data-theme="dark"] .form-control::placeholder {
+  color: var(--wl-muted-text);
+}
+
+[data-theme="dark"] .text-muted {
+  color: var(--wl-muted-text) !important;
+}
+
+[data-theme="dark"] .table {
+  color: var(--wl-body-text);
+}
+
+[data-theme="dark"] .table-light,
+[data-theme="dark"] .table thead th {
+  background-color: var(--wl-table-header-bg) !important;
+  color: var(--wl-body-text);
+}
+
+[data-theme="dark"] .table-hover tbody tr:hover {
+  background-color: var(--wl-table-hover);
+  color: var(--wl-body-text);
+}
+
+[data-theme="dark"] .list-group-item {
+  background-color: var(--wl-card-bg);
+  border-color: var(--wl-input-border);
+  color: var(--wl-body-text);
+}
+
+[data-theme="dark"] .btn-outline-secondary {
+  color: var(--wl-muted-text);
+  border-color: var(--wl-input-border);
+}
+
+[data-theme="dark"] .btn-outline-success {
+  color: var(--wl-green-light);
+  border-color: var(--wl-green-light);
+}
+
+[data-theme="dark"] .avatar-option {
+  background: #2a2a2a;
+}
+
+[data-theme="dark"] .avatar-option:hover {
+  border-color: var(--wl-green-light);
+  background: #1b3a2a;
+}
+
+[data-theme="dark"] .avatar-option.selected {
+  border-color: var(--wl-green-light);
+  background: #1a3a28;
+}
+
+[data-theme="dark"] .avatar-option .avatar-label {
+  color: var(--wl-muted-text);
+}
+
+[data-theme="dark"] .stat-card {
+  background: var(--wl-card-bg);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+
+[data-theme="dark"] .stat-card .stat-value {
+  color: var(--wl-green-light);
+}
+
+[data-theme="dark"] .stat-card .stat-label {
+  color: var(--wl-muted-text);
+}
+
+[data-theme="dark"] .wordle-tile.empty {
+  color: var(--wl-body-text);
+  border-color: var(--wl-empty-border);
+}
+
+[data-theme="dark"] .wordle-tile.has-letter {
+  border-color: #888;
+}
+
+[data-theme="dark"] .key-btn.unused {
+  background-color: #555;
+  color: #e0e0e0;
+}
+
+[data-theme="dark"] .hole-nav .hole-btn {
+  background: var(--wl-card-bg);
+  border-color: #444;
+  color: var(--wl-body-text);
+}
+
+[data-theme="dark"] .hole-nav .hole-btn.locked {
+  background: #2a2a2a;
+  color: #666;
+  border-color: #444;
+}
+
+[data-theme="dark"] .hole-nav .hole-btn.past {
+  background: #3a2020;
+  color: #c88;
+  border-color: #5a3030;
+}
+
+[data-theme="dark"] .card-header {
+  border-bottom-color: var(--wl-input-border);
+}
+
+[data-theme="dark"] .container h2,
+[data-theme="dark"] .container h5 {
+  color: var(--wl-green-light) !important;
+}
+
+/* Theme toggle button */
+.theme-toggle {
+  background: none;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 20px;
+  padding: 4px 12px;
+  color: white;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: border-color 0.2s;
+}
+
+.theme-toggle:hover {
+  border-color: rgba(255,255,255,0.6);
 }
 
 html, body, #root {
@@ -265,6 +469,12 @@ body {
   font-size: 1.4rem;
   border: 2px solid var(--wl-green-dark);
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.avatar-circle svg {
+  width: 100%;
+  height: 100%;
 }
 
 .avatar-circle.large {
@@ -308,6 +518,17 @@ body {
 
 .avatar-option .avatar-emoji {
   font-size: 2rem;
+}
+
+.avatar-option .avatar-svg-preview {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto;
+}
+
+.avatar-option .avatar-svg-preview svg {
+  width: 100%;
+  height: 100%;
 }
 
 .avatar-option .avatar-label {

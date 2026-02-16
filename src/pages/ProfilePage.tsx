@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
+import { useTheme } from '../context/ThemeContext';
 import { AvatarChoice, UserStats, HolePar } from '../types';
 import Avatar from '../components/common/Avatar';
 import AvatarPicker from '../components/common/AvatarPicker';
@@ -10,6 +11,7 @@ import { getGameById } from '../utils/storage';
 export default function ProfilePage() {
   const { user, isAuthenticated, updateProfile, displayName } = useAuth();
   const { getUserResults, getUserInvitations, acceptInvitation, declineInvitation, getUserGames } = useGame();
+  const { theme, toggleTheme } = useTheme();
 
   const [editing, setEditing] = useState(false);
   const [firstName, setFirstName] = useState(user?.firstName || '');
@@ -142,6 +144,23 @@ export default function ProfilePage() {
                   }}>
                     Edit Profile
                   </button>
+                  <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--wl-input-border, #dee2e6)' }}>
+                    <label className="form-label small text-muted mb-2">Theme</label>
+                    <div className="d-flex justify-content-center gap-2">
+                      <button
+                        className={`btn btn-sm ${theme === 'light' ? 'btn-success' : 'btn-outline-secondary'}`}
+                        onClick={() => { if (theme !== 'light') toggleTheme(); }}
+                      >
+                        {'\u2600'} Light
+                      </button>
+                      <button
+                        className={`btn btn-sm ${theme === 'dark' ? 'btn-success' : 'btn-outline-secondary'}`}
+                        onClick={() => { if (theme !== 'dark') toggleTheme(); }}
+                      >
+                        {'\u263E'} Dark
+                      </button>
+                    </div>
+                  </div>
                 </>
               )}
             </div>

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, Link, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
-import { HolePar, RoundConfig, ThemeOption } from '../types';
+import { HolePar, RoundConfig } from '../types';
 import GolfScorecard from '../components/game/GolfScorecard';
 import Avatar from '../components/common/Avatar';
 import { getUserById } from '../utils/storage';
@@ -70,8 +70,6 @@ export default function GameResultsPage() {
         holeNumber: i + 1,
         par: 4 as HolePar,
       })),
-      frontNineTheme: 'golf' as ThemeOption,
-      backNineTheme: 'golf' as ThemeOption,
       startDate: new Date().toISOString(),
     };
     startNewRound(gameId!, newRound);

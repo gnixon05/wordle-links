@@ -228,6 +228,14 @@ export function getWordListByLength(length: number): string[] {
   }
 }
 
+/**
+ * Filter out words that are likely plurals (ending in 'S').
+ * Used when selecting target/secret words to avoid plural answers.
+ */
+export function filterNonPlurals(words: string[]): string[] {
+  return words.filter(w => !w.endsWith('S'));
+}
+
 export function getThemedWords(theme: string, length: number): string[] {
   const themeMap: Record<string, Record<number, string[]>> = {
     golf: { 4: GOLF_WORDS_4, 5: GOLF_WORDS_5, 6: GOLF_WORDS_6 },
@@ -242,4 +250,20 @@ export function getThemedWords(theme: string, length: number): string[] {
   }
 
   return themeMap[theme]?.[length] || getWordListByLength(length);
+}
+
+/**
+ * Get themed words filtered to exclude plurals.
+ * Use this when selecting target/secret words for holes.
+ */
+export function getThemedWordsForTarget(theme: string, length: number): string[] {
+  return filterNonPlurals(getThemedWords(theme, length));
+}
+
+/**
+ * Get word list by length filtered to exclude plurals.
+ * Use this when selecting target/secret words.
+ */
+export function getWordListByLengthForTarget(length: number): string[] {
+  return filterNonPlurals(getWordListByLength(length));
 }

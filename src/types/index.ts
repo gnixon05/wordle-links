@@ -44,8 +44,12 @@ export interface RoundConfig {
   frontNineTheme?: ThemeOption;
   backNineTheme?: ThemeOption;
   startDate: string; // ISO date when round begins
-  startWordMode?: StartWordMode; // how first guess is determined
-  startWordTheme?: ThemeOption; // theme for generating start words (if mode is 'theme')
+  startWordMode?: StartWordMode; // how first guess is determined (legacy, applies to all holes)
+  startWordTheme?: ThemeOption; // theme for generating start words (legacy, applies to all holes)
+  startWordModeFront?: StartWordMode; // how first guess is determined for front 9
+  startWordModeBack?: StartWordMode; // how first guess is determined for back 9
+  startWordThemeFront?: ThemeOption; // theme for front 9 start words (if mode is 'theme')
+  startWordThemeBack?: ThemeOption; // theme for back 9 start words (if mode is 'theme')
 }
 
 export interface Game {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
 import { HolePar, RoundConfig, ThemeOption } from '../types';
@@ -20,8 +20,7 @@ export default function GameResultsPage() {
   const game = gameId ? getGame(gameId) : undefined;
 
   if (!isAuthenticated || !user) {
-    navigate('/login');
-    return null;
+    return <Navigate to="/login" replace />;
   }
 
   if (!game) {

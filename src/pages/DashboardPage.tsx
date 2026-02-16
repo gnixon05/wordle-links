@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
 import { Game } from '../types';
@@ -17,8 +17,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'my' | 'public' | 'invites'>('my');
 
   if (!isAuthenticated || !user) {
-    navigate('/login');
-    return null;
+    return <Navigate to="/login" replace />;
   }
 
   const myGames = getUserGames();

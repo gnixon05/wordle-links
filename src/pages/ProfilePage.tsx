@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
 import { AvatarChoice, UserStats, HolePar } from '../types';
@@ -8,7 +8,6 @@ import AvatarPicker from '../components/common/AvatarPicker';
 import { getGameById } from '../utils/storage';
 
 export default function ProfilePage() {
-  const navigate = useNavigate();
   const { user, isAuthenticated, updateProfile, displayName } = useAuth();
   const { getUserResults, getUserInvitations, acceptInvitation, declineInvitation, getUserGames } = useGame();
 
@@ -19,8 +18,7 @@ export default function ProfilePage() {
   const [avatar, setAvatar] = useState<AvatarChoice>(user?.avatar || { category: 'golfball', variant: 'cowboy' });
 
   if (!isAuthenticated || !user) {
-    navigate('/login');
-    return null;
+    return <Navigate to="/login" replace />;
   }
 
   const invitations = getUserInvitations();

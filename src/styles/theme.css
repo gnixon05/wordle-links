@@ -341,6 +341,7 @@ body {
 
 .wordle-tile.has-letter {
   border-color: #878a8c;
+  color: var(--wl-body-text);
   animation: pop 0.1s ease-in-out;
 }
 

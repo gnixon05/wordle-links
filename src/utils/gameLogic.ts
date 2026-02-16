@@ -141,23 +141,22 @@ export function pickWordForHole(
 }
 
 /**
- * Generate words for an entire round based on configuration
+ * Generate words for an entire round based on configuration.
+ * Accepts previouslyUsedWords to prevent reuse across rounds within a game/tour.
  */
 export function generateRoundWords(
   holes: { par: HolePar; customWord?: string }[],
   frontTheme: string,
   backTheme: string,
-  _dateStr?: string
+  previouslyUsedWords: string[] = []
 ): string[] {
-  const usedWords: string[] = [];
+  const usedWords: string[] = [...previouslyUsedWords];
   const words: string[] = [];
 
   for (let i = 0; i < holes.length; i++) {
     const hole = holes[i];
     const theme = i < 9 ? frontTheme : backTheme;
 
-    // For par 4 holes without custom words, we could fetch the daily Wordle word
-    // but since that requires an API call, we generate locally
     const word = pickWordForHole(theme, hole.par, usedWords, hole.customWord);
     words.push(word);
     usedWords.push(word);

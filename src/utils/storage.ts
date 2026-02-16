@@ -132,6 +132,22 @@ export function saveGameWords(gameId: string, roundNumber: number, words: string
   setItem(STORAGE_KEYS.GAME_WORDS, all);
 }
 
+/**
+ * Get all target words used across all rounds of a game.
+ * Used to prevent word reuse when generating new rounds.
+ */
+export function getAllUsedWordsForGame(gameId: string): string[] {
+  const all = getItem<Record<string, string[]>>(STORAGE_KEYS.GAME_WORDS, {});
+  const usedWords: string[] = [];
+  const prefix = `${gameId}_`;
+  for (const key of Object.keys(all)) {
+    if (key.startsWith(prefix)) {
+      usedWords.push(...all[key]);
+    }
+  }
+  return usedWords;
+}
+
 // --- Game Start Words (forced first guesses, stored separately) ---
 
 export function getGameStartWords(gameId: string, roundNumber: number): string[] {

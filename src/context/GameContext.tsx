@@ -14,8 +14,9 @@ import {
   saveGameWords,
   getGameStartWords,
   saveGameStartWords,
+  getAllUsedWordsForGame,
 } from '../utils/storage';
-import { pickDailyWord, pickStartWord, getTodayDateString } from '../utils/gameLogic';
+import { generateRoundWords, pickStartWord } from '../utils/gameLogic';
 import { useAuth } from './AuthContext';
 
 interface CreateGameData {
@@ -104,21 +105,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
     };
 
-    // Generate target words for round 1
+    // Generate target words for round 1 (no previously used words for a new game)
     const round = game.rounds[0];
-    const words = round.holes.map((hole, idx) => {
-      const theme = idx < 9
-        ? (round.frontNineTheme || 'golf')
-        : (round.backNineTheme || 'golf');
-      return pickDailyWord(
-        getTodayDateString(),
-        hole.holeNumber,
-        game.id,
-        hole.par,
-        theme,
-        hole.customWord
-      );
-    });
+    const words = generateRoundWords(
+      round.holes,
+      round.frontNineTheme || 'golf',
+      round.backNineTheme || 'golf',
+    );
 
     // Generate start words per hole based on front/back nine modes
     const hasAnyStartWords = startWordModeFront !== 'none' || startWordModeBack !== 'none';
@@ -256,20 +249,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     game.rounds.push(roundConfig);
     game.currentRound = roundConfig.roundNumber;
 
-    // Generate target words for the new round
-    const words = roundConfig.holes.map((hole, idx) => {
-      const theme = idx < 9
-        ? (roundConfig.frontNineTheme || 'golf')
-        : (roundConfig.backNineTheme || 'golf');
-      return pickDailyWord(
-        getTodayDateString(),
-        hole.holeNumber,
-        game.id,
-        hole.par,
-        theme,
-        hole.customWord
-      );
-    });
+    // Gather all words used in previous rounds to prevent reuse
+    const previouslyUsedWords = getAllUsedWordsForGame(gameId);
+
+    // Generate target words for the new round, excluding previously used words
+    const words = generateRoundWords(
+      roundConfig.holes,
+      roundConfig.frontNineTheme || 'golf',
+      roundConfig.backNineTheme || 'golf',
+      previouslyUsedWords,
+    );
 
     // Generate start words per hole based on front/back nine modes
     const swModeFront = roundConfig.startWordModeFront || roundConfig.startWordMode || 'none';

@@ -1,9 +1,18 @@
 import { AvatarChoice } from '../../types';
 import { AVATAR_OPTIONS, AvatarOption } from '../../data/avatars';
+import { getAvatarSvg } from './AvatarSvgs';
 
 interface AvatarPickerProps {
   selected: AvatarChoice;
   onSelect: (choice: AvatarChoice) => void;
+}
+
+function AvatarPreview({ opt }: { opt: AvatarOption }) {
+  const svg = getAvatarSvg(opt.category, opt.variant);
+  if (svg) {
+    return <div className="avatar-svg-preview">{svg}</div>;
+  }
+  return <div className="avatar-emoji">{opt.emoji}</div>;
 }
 
 export default function AvatarPicker({ selected, onSelect }: AvatarPickerProps) {
@@ -23,7 +32,7 @@ export default function AvatarPicker({ selected, onSelect }: AvatarPickerProps) 
             className={`avatar-option ${isSelected(opt) ? 'selected' : ''}`}
             onClick={() => onSelect({ category: opt.category, variant: opt.variant })}
           >
-            <div className="avatar-emoji">{opt.emoji}</div>
+            <AvatarPreview opt={opt} />
             <div className="avatar-label">{opt.label}</div>
           </div>
         ))}
@@ -37,7 +46,7 @@ export default function AvatarPicker({ selected, onSelect }: AvatarPickerProps) 
             className={`avatar-option ${isSelected(opt) ? 'selected' : ''}`}
             onClick={() => onSelect({ category: opt.category, variant: opt.variant })}
           >
-            <div className="avatar-emoji">{opt.emoji}</div>
+            <AvatarPreview opt={opt} />
             <div className="avatar-label">{opt.label}</div>
           </div>
         ))}

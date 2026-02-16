@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
 import { HoleConfig, HolePar, ThemeOption, GameVisibility, StartWordMode } from '../types';
@@ -35,13 +35,14 @@ export default function CreateGamePage() {
   const [holes, setHoles] = useState<HoleConfig[]>(createDefaultHoles());
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [wordMode, setWordMode] = useState<'theme' | 'custom' | 'mixed'>('theme');
-  const [startWordMode, setStartWordMode] = useState<StartWordMode>('none');
-  const [startWordTheme, setStartWordTheme] = useState<ThemeOption>('golf');
+  const [startWordModeFront, setStartWordModeFront] = useState<StartWordMode>('none');
+  const [startWordModeBack, setStartWordModeBack] = useState<StartWordMode>('none');
+  const [startWordThemeFront, setStartWordThemeFront] = useState<ThemeOption>('golf');
+  const [startWordThemeBack, setStartWordThemeBack] = useState<ThemeOption>('golf');
   const [error, setError] = useState('');
 
   if (!isAuthenticated || !user) {
-    navigate('/login');
-    return null;
+    return <Navigate to="/login" replace />;
   }
 
   const otherUsers = allUsers.filter(u => u.id !== user.id);
@@ -94,11 +95,26 @@ export default function CreateGamePage() {
       }
     }
 
-    // Validate custom start words if in custom start word mode
-    if (startWordMode === 'custom') {
-      for (const hole of holes) {
+    // Validate custom start words for front 9
+    if (startWordModeFront === 'custom') {
+      for (const hole of holes.filter(h => h.holeNumber <= 9)) {
         if (!hole.customStartWord) {
-          setError(`Please enter a start word for Hole ${hole.holeNumber} or switch start word to theme mode.`);
+          setError(`Please enter a start word for Hole ${hole.holeNumber} or switch front 9 start word mode.`);
+          return;
+        }
+        const expectedLength = hole.par === 3 ? 4 : hole.par === 5 ? 6 : 5;
+        if (hole.customStartWord.length !== expectedLength) {
+          setError(`Hole ${hole.holeNumber} start word must be ${expectedLength} letters (Par ${hole.par}).`);
+          return;
+        }
+      }
+    }
+
+    // Validate custom start words for back 9
+    if (startWordModeBack === 'custom') {
+      for (const hole of holes.filter(h => h.holeNumber > 9)) {
+        if (!hole.customStartWord) {
+          setError(`Please enter a start word for Hole ${hole.holeNumber} or switch back 9 start word mode.`);
           return;
         }
         const expectedLength = hole.par === 3 ? 4 : hole.par === 5 ? 6 : 5;
@@ -118,8 +134,10 @@ export default function CreateGamePage() {
         holes,
         frontNineTheme: frontTheme,
         backNineTheme: backTheme,
-        startWordMode,
-        startWordTheme: startWordMode === 'theme' ? startWordTheme : undefined,
+        startWordModeFront,
+        startWordModeBack,
+        startWordThemeFront: startWordModeFront === 'theme' ? startWordThemeFront : undefined,
+        startWordThemeBack: startWordModeBack === 'theme' ? startWordThemeBack : undefined,
       },
     });
 
@@ -313,69 +331,134 @@ export default function CreateGamePage() {
                 {/* Start Word Settings */}
                 <div className="mb-3 p-3 border rounded bg-light">
                   <label className="form-label fw-semibold">Start Word (Forced First Guess)</label>
-                  <div className="form-text mb-2">
-                    Choose how the first guess is determined for each hole. Players will have this word
-                    automatically played as their opening guess.
-                  </div>
-                  <div className="d-flex gap-3 flex-wrap">
-                    <div className="form-check">
-                      <input
-                        className="form-check-input"
-                        type="radio"
-                        name="startWordMode"
-                        id="swNone"
-                        checked={startWordMode === 'none'}
-                        onChange={() => setStartWordMode('none')}
-                      />
-                      <label className="form-check-label" htmlFor="swNone">
-                        None (players choose their own first guess)
-                      </label>
-                    </div>
-                    <div className="form-check">
-                      <input
-                        className="form-check-input"
-                        type="radio"
-                        name="startWordMode"
-                        id="swTheme"
-                        checked={startWordMode === 'theme'}
-                        onChange={() => setStartWordMode('theme')}
-                      />
-                      <label className="form-check-label" htmlFor="swTheme">
-                        From category (auto-generate from a theme)
-                      </label>
-                    </div>
-                    <div className="form-check">
-                      <input
-                        className="form-check-input"
-                        type="radio"
-                        name="startWordMode"
-                        id="swCustom"
-                        checked={startWordMode === 'custom'}
-                        onChange={() => setStartWordMode('custom')}
-                      />
-                      <label className="form-check-label" htmlFor="swCustom">
-                        Custom (specify a start word for each hole)
-                      </label>
-                    </div>
+                  <div className="form-text mb-3">
+                    Choose how the first guess is determined for each nine. Players will have this word
+                    automatically played as their opening guess. You can configure the front 9 and back 9 separately.
                   </div>
 
-                  {startWordMode === 'theme' && (
-                    <div className="mt-3" style={{ maxWidth: '300px' }}>
-                      <label className="form-label fw-semibold">Start Word Category</label>
-                      <select
-                        className="form-select"
-                        value={startWordTheme}
-                        onChange={e => setStartWordTheme(e.target.value as ThemeOption)}
-                      >
-                        {THEME_OPTIONS.map(t => (
-                          <option key={t.value} value={t.value}>{t.label}</option>
-                        ))}
-                      </select>
-                      <div className="form-text">
-                        A word from this category will be auto-played as the first guess on each hole.
+                  <div className="row g-3">
+                    {/* Front 9 Start Word */}
+                    <div className="col-md-6">
+                      <div className="p-2 border rounded">
+                        <label className="form-label fw-semibold">Front 9 (Holes 1-9)</label>
+                        <div className="d-flex flex-column gap-1">
+                          <div className="form-check">
+                            <input
+                              className="form-check-input"
+                              type="radio"
+                              name="startWordModeFront"
+                              id="swFrontNone"
+                              checked={startWordModeFront === 'none'}
+                              onChange={() => setStartWordModeFront('none')}
+                            />
+                            <label className="form-check-label" htmlFor="swFrontNone">
+                              None (players choose)
+                            </label>
+                          </div>
+                          <div className="form-check">
+                            <input
+                              className="form-check-input"
+                              type="radio"
+                              name="startWordModeFront"
+                              id="swFrontTheme"
+                              checked={startWordModeFront === 'theme'}
+                              onChange={() => setStartWordModeFront('theme')}
+                            />
+                            <label className="form-check-label" htmlFor="swFrontTheme">
+                              From category
+                            </label>
+                          </div>
+                          <div className="form-check">
+                            <input
+                              className="form-check-input"
+                              type="radio"
+                              name="startWordModeFront"
+                              id="swFrontCustom"
+                              checked={startWordModeFront === 'custom'}
+                              onChange={() => setStartWordModeFront('custom')}
+                            />
+                            <label className="form-check-label" htmlFor="swFrontCustom">
+                              Custom (per hole)
+                            </label>
+                          </div>
+                        </div>
+                        {startWordModeFront === 'theme' && (
+                          <div className="mt-2">
+                            <select
+                              className="form-select form-select-sm"
+                              value={startWordThemeFront}
+                              onChange={e => setStartWordThemeFront(e.target.value as ThemeOption)}
+                            >
+                              {THEME_OPTIONS.map(t => (
+                                <option key={t.value} value={t.value}>{t.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  )}
+
+                    {/* Back 9 Start Word */}
+                    <div className="col-md-6">
+                      <div className="p-2 border rounded">
+                        <label className="form-label fw-semibold">Back 9 (Holes 10-18)</label>
+                        <div className="d-flex flex-column gap-1">
+                          <div className="form-check">
+                            <input
+                              className="form-check-input"
+                              type="radio"
+                              name="startWordModeBack"
+                              id="swBackNone"
+                              checked={startWordModeBack === 'none'}
+                              onChange={() => setStartWordModeBack('none')}
+                            />
+                            <label className="form-check-label" htmlFor="swBackNone">
+                              None (players choose)
+                            </label>
+                          </div>
+                          <div className="form-check">
+                            <input
+                              className="form-check-input"
+                              type="radio"
+                              name="startWordModeBack"
+                              id="swBackTheme"
+                              checked={startWordModeBack === 'theme'}
+                              onChange={() => setStartWordModeBack('theme')}
+                            />
+                            <label className="form-check-label" htmlFor="swBackTheme">
+                              From category
+                            </label>
+                          </div>
+                          <div className="form-check">
+                            <input
+                              className="form-check-input"
+                              type="radio"
+                              name="startWordModeBack"
+                              id="swBackCustom"
+                              checked={startWordModeBack === 'custom'}
+                              onChange={() => setStartWordModeBack('custom')}
+                            />
+                            <label className="form-check-label" htmlFor="swBackCustom">
+                              Custom (per hole)
+                            </label>
+                          </div>
+                        </div>
+                        {startWordModeBack === 'theme' && (
+                          <div className="mt-2">
+                            <select
+                              className="form-select form-select-sm"
+                              value={startWordThemeBack}
+                              onChange={e => setStartWordThemeBack(e.target.value as ThemeOption)}
+                            >
+                              {THEME_OPTIONS.map(t => (
+                                <option key={t.value} value={t.value}>{t.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="d-flex justify-content-between align-items-center mb-3">
@@ -399,7 +482,7 @@ export default function CreateGamePage() {
                           <th>Word Length</th>
                           <th>Guesses</th>
                           {(wordMode === 'custom' || wordMode === 'mixed') && <th>Custom Word</th>}
-                          {startWordMode === 'custom' && <th>Start Word</th>}
+                          {(startWordModeFront === 'custom' || startWordModeBack === 'custom') && <th>Start Word</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -440,17 +523,22 @@ export default function CreateGamePage() {
                                   />
                                 </td>
                               )}
-                              {startWordMode === 'custom' && (
+                              {(startWordModeFront === 'custom' || startWordModeBack === 'custom') && (
                                 <td>
-                                  <input
-                                    type="text"
-                                    className="form-control form-control-sm"
-                                    style={{ width: '100px' }}
-                                    maxLength={wordLen}
-                                    value={hole.customStartWord || ''}
-                                    onChange={e => updateHoleStartWord(hole.holeNumber, e.target.value)}
-                                    placeholder="Required"
-                                  />
+                                  {((hole.holeNumber <= 9 && startWordModeFront === 'custom') ||
+                                    (hole.holeNumber > 9 && startWordModeBack === 'custom')) ? (
+                                    <input
+                                      type="text"
+                                      className="form-control form-control-sm"
+                                      style={{ width: '100px' }}
+                                      maxLength={wordLen}
+                                      value={hole.customStartWord || ''}
+                                      onChange={e => updateHoleStartWord(hole.holeNumber, e.target.value)}
+                                      placeholder="Required"
+                                    />
+                                  ) : (
+                                    <span className="text-muted small">-</span>
+                                  )}
                                 </td>
                               )}
                             </tr>
@@ -465,7 +553,7 @@ export default function CreateGamePage() {
                   <div className="alert alert-info small mb-0">
                     All 18 holes default to Par 4 (5-letter words, 6 guesses).
                     Click "Customize Holes" to change individual holes to Par 3 or Par 5.
-                    {startWordMode === 'custom' && (
+                    {(startWordModeFront === 'custom' || startWordModeBack === 'custom') && (
                       <> You must expand this section to enter custom start words.</>
                     )}
                   </div>

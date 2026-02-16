@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
 import { GuessRow, HoleResult, HolePar } from '../types';
@@ -24,7 +24,6 @@ import {
 
 export default function GamePlayPage() {
   const { gameId } = useParams<{ gameId: string }>();
-  const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const {
     getGame, getWordsForRound, getStartWordsForRound, submitHoleResult, getUserResult,
@@ -54,7 +53,10 @@ export default function GamePlayPage() {
   const maxGuesses = getMaxGuessesForPar(par);
   const targetWord = words[currentHole - 1] || '';
   const startWord = startWords[currentHole - 1] || '';
-  const hasStartWord = startWord.length > 0 && (round?.startWordMode || 'none') !== 'none';
+  const holeStartWordMode = currentHole <= 9
+    ? (round?.startWordModeFront || round?.startWordMode || 'none')
+    : (round?.startWordModeBack || round?.startWordMode || 'none');
+  const hasStartWord = startWord.length > 0 && holeStartWordMode !== 'none';
 
   const completedHoles: HoleResult[] = userResult?.holes || [];
   const currentHoleResult = completedHoles.find(h => h.holeNumber === currentHole);
@@ -224,8 +226,7 @@ export default function GamePlayPage() {
   }, [handleEnter, handleBackspace, handleKeyPress]);
 
   if (!isAuthenticated || !user) {
-    navigate('/login');
-    return null;
+    return <Navigate to="/login" replace />;
   }
 
   if (!game || !round) {

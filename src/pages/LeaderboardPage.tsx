@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LeaderboardEntry, HolePar } from '../types';
 import Avatar from '../components/common/Avatar';
@@ -8,15 +8,11 @@ import { getDisplayName } from '../utils/gameLogic';
 import { getRoundResults } from '../utils/storage';
 
 export default function LeaderboardPage() {
-  const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
 
-  if (!isAuthenticated) {
-    navigate('/login');
-    return null;
-  }
-
   const leaderboard = useMemo((): LeaderboardEntry[] => {
+    if (!isAuthenticated) return [];
+
     const users = getUsers();
     const allResults = getRoundResults();
 
@@ -25,7 +21,6 @@ export default function LeaderboardPage() {
       const completedResults = userResults.filter(r => r.completedAt);
 
       let totalScore = 0;
-      let holesPlayed = 0;
       let holesInOne = 0;
       let eagles = 0;
       let birdies = 0;
@@ -35,7 +30,6 @@ export default function LeaderboardPage() {
 
       completedResults.forEach(r => {
         totalScore += r.totalScore;
-        holesPlayed += r.holes.length;
 
         if (r.totalScore < bestRound) bestRound = r.totalScore;
 
@@ -69,7 +63,11 @@ export default function LeaderboardPage() {
     })
     .filter(e => e.roundsPlayed > 0)
     .sort((a, b) => a.averageScore - b.averageScore);
-  }, []);
+  }, [isAuthenticated]);
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
 
   return (
     <div className="container py-4">

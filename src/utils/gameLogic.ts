@@ -1,5 +1,5 @@
 import { GuessRow, HolePar, LetterGuess, LetterStatus, HoleResult, KeyboardKey, ThemeOption } from '../types';
-import { getWordListByLength, getThemedWords } from '../data/wordLists';
+import { getWordListByLength, getThemedWordsForTarget, getWordListByLengthForTarget } from '../data/wordLists';
 
 /**
  * Evaluate a guess against the target word.
@@ -126,12 +126,12 @@ export function pickWordForHole(
   if (customWord) return customWord.toUpperCase();
 
   const wordLength = getWordLengthForPar(par);
-  const themedWords = getThemedWords(theme, wordLength);
+  const themedWords = getThemedWordsForTarget(theme, wordLength);
   const available = themedWords.filter(w => !usedWords.includes(w));
 
   if (available.length === 0) {
-    // Fallback to full list
-    const allWords = getWordListByLength(wordLength);
+    // Fallback to full list (still excluding plurals)
+    const allWords = getWordListByLengthForTarget(wordLength);
     const fallback = allWords.filter(w => !usedWords.includes(w));
     if (fallback.length === 0) return themedWords[0];
     return fallback[Math.floor(Math.random() * fallback.length)];
@@ -265,7 +265,7 @@ export function pickDailyWord(
   if (customWord) return customWord.toUpperCase();
 
   const wordLength = getWordLengthForPar(par);
-  const words = getThemedWords(theme, wordLength);
+  const words = getThemedWordsForTarget(theme, wordLength);
   const seed = `${dateStr}-${gameId}-${holeNumber}`;
   const index = Math.floor(seededRandom(seed) * words.length);
   return words[index];
@@ -348,7 +348,7 @@ export function pickStartWord(
   if (customStartWord) return customStartWord.toUpperCase();
 
   const wordLength = getWordLengthForPar(par);
-  const words = getThemedWords(theme, wordLength);
+  const words = getThemedWordsForTarget(theme, wordLength);
   const seed = `startword-${gameId}-${holeNumber}`;
   let index = Math.floor(seededRandom(seed) * words.length);
   let word = words[index];

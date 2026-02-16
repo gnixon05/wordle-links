@@ -27,8 +27,12 @@ interface CreateGameData {
     holes: HoleConfig[];
     frontNineTheme: ThemeOption;
     backNineTheme: ThemeOption;
-    startWordMode: StartWordMode;
-    startWordTheme?: ThemeOption;
+    startWordMode?: StartWordMode; // legacy: applies to all holes
+    startWordTheme?: ThemeOption; // legacy: applies to all holes
+    startWordModeFront?: StartWordMode;
+    startWordModeBack?: StartWordMode;
+    startWordThemeFront?: ThemeOption;
+    startWordThemeBack?: ThemeOption;
   };
 }
 
@@ -71,8 +75,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const createGame = useCallback((data: CreateGameData): Game => {
     if (!user) throw new Error('Must be logged in to create a game');
 
-    const startWordMode = data.roundConfig.startWordMode || 'none';
-    const startWordTheme = data.roundConfig.startWordTheme;
+    // Resolve start word modes: prefer per-nine fields, fall back to legacy
+    const startWordModeFront = data.roundConfig.startWordModeFront || data.roundConfig.startWordMode || 'none';
+    const startWordModeBack = data.roundConfig.startWordModeBack || data.roundConfig.startWordMode || 'none';
+    const startWordThemeFront = data.roundConfig.startWordThemeFront || data.roundConfig.startWordTheme;
+    const startWordThemeBack = data.roundConfig.startWordThemeBack || data.roundConfig.startWordTheme;
 
     const game: Game = {
       id: uuidv4(),
@@ -88,8 +95,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         frontNineTheme: data.roundConfig.frontNineTheme,
         backNineTheme: data.roundConfig.backNineTheme,
         startDate: new Date().toISOString(),
-        startWordMode,
-        startWordTheme,
+        startWordModeFront,
+        startWordModeBack,
+        startWordThemeFront,
+        startWordThemeBack,
       }],
       currentRound: 1,
       createdAt: new Date().toISOString(),
@@ -111,18 +120,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
       );
     });
 
-    // Generate start words if mode is not 'none'
+    // Generate start words per hole based on front/back nine modes
+    const hasAnyStartWords = startWordModeFront !== 'none' || startWordModeBack !== 'none';
     let startWords: string[] = [];
-    if (startWordMode !== 'none') {
+    if (hasAnyStartWords) {
       startWords = round.holes.map((hole, idx) => {
-        const theme = startWordMode === 'theme'
-          ? (startWordTheme || (idx < 9 ? (round.frontNineTheme || 'golf') : (round.backNineTheme || 'golf')))
-          : 'golf'; // fallback
+        const isFront = idx < 9;
+        const holeMode = isFront ? startWordModeFront : startWordModeBack;
+
+        if (holeMode === 'none') return '';
+
+        const holeTheme = holeMode === 'theme'
+          ? ((isFront ? startWordThemeFront : startWordThemeBack) || (isFront ? (round.frontNineTheme || 'golf') : (round.backNineTheme || 'golf')))
+          : 'golf';
         return pickStartWord(
           game.id,
           hole.holeNumber,
           hole.par,
-          theme,
+          holeTheme,
           words[idx],
           hole.customStartWord
         );
@@ -256,19 +271,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
       );
     });
 
-    // Generate start words if mode is not 'none'
-    const startWordMode = roundConfig.startWordMode || 'none';
+    // Generate start words per hole based on front/back nine modes
+    const swModeFront = roundConfig.startWordModeFront || roundConfig.startWordMode || 'none';
+    const swModeBack = roundConfig.startWordModeBack || roundConfig.startWordMode || 'none';
+    const swThemeFront = roundConfig.startWordThemeFront || roundConfig.startWordTheme;
+    const swThemeBack = roundConfig.startWordThemeBack || roundConfig.startWordTheme;
+    const hasAnyStartWords = swModeFront !== 'none' || swModeBack !== 'none';
     let startWords: string[] = [];
-    if (startWordMode !== 'none') {
+    if (hasAnyStartWords) {
       startWords = roundConfig.holes.map((hole, idx) => {
-        const theme = startWordMode === 'theme'
-          ? (roundConfig.startWordTheme || (idx < 9 ? (roundConfig.frontNineTheme || 'golf') : (roundConfig.backNineTheme || 'golf')))
+        const isFront = idx < 9;
+        const holeMode = isFront ? swModeFront : swModeBack;
+
+        if (holeMode === 'none') return '';
+
+        const holeTheme = holeMode === 'theme'
+          ? ((isFront ? swThemeFront : swThemeBack) || (isFront ? (roundConfig.frontNineTheme || 'golf') : (roundConfig.backNineTheme || 'golf')))
           : 'golf';
         return pickStartWord(
           game.id,
           hole.holeNumber,
           hole.par,
-          theme,
+          holeTheme,
           words[idx],
           hole.customStartWord
         );

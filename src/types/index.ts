@@ -41,9 +41,12 @@ export type ThemeOption = 'golf' | 'sports' | 'nature' | 'food' | 'animals' | 'r
 
 export type StartWordMode = 'theme' | 'custom' | 'none';
 
+export type WordMode = 'classic' | 'custom';
+
 export interface RoundConfig {
   roundNumber: number;
   holes: HoleConfig[];
+  wordMode?: WordMode; // 'classic' (Wordle API) or 'custom' (themed/custom words)
   frontNineTheme?: ThemeOption;
   backNineTheme?: ThemeOption;
   startDate: string; // ISO date when round begins

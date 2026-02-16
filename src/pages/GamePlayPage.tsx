@@ -20,14 +20,16 @@ import {
   getHoleAvailability,
   getTodaysHoleNumber,
   formatHoleDate,
+  getHoleAvailableDate,
+  fetchDailyWordleWord,
 } from '../utils/gameLogic';
 
 export default function GamePlayPage() {
   const { gameId } = useParams<{ gameId: string }>();
   const { user, isAuthenticated } = useAuth();
   const {
-    getGame, getWordsForRound, getStartWordsForRound, submitHoleResult, getUserResult,
-    isRoundCompleteForAllPlayers,
+    getGame, getWordsForRound, getStartWordsForRound, updateWordForHole,
+    submitHoleResult, getUserResult, isRoundCompleteForAllPlayers,
   } = useGame();
 
   const [currentHole, setCurrentHole] = useState(1);
@@ -38,6 +40,8 @@ export default function GamePlayPage() {
   const [message, setMessage] = useState('');
   const [showMessage, setShowMessage] = useState(false);
   const [startWordApplied, setStartWordApplied] = useState(false);
+  const [fetchingWord, setFetchingWord] = useState(false);
+  const [fetchedWords, setFetchedWords] = useState<Record<number, string>>({});
 
   const game = gameId ? getGame(gameId) : undefined;
   const roundNumber = game?.currentRound || 1;
@@ -51,7 +55,9 @@ export default function GamePlayPage() {
   const par: HolePar = holeConfig?.par || 4;
   const wordLength = getWordLengthForPar(par);
   const maxGuesses = getMaxGuessesForPar(par);
-  const targetWord = words[currentHole - 1] || '';
+  const isClassicMode = round?.wordMode === 'classic';
+  const storedWord = words[currentHole - 1] || '';
+  const targetWord = fetchedWords[currentHole] || storedWord;
   const startWord = startWords[currentHole - 1] || '';
   const holeStartWordMode = currentHole <= 9
     ? (round?.startWordModeFront || round?.startWordMode || 'none')
@@ -66,6 +72,26 @@ export default function GamePlayPage() {
   const isHoleLocked = holeAvailability === 'locked';
   const isHolePast = holeAvailability === 'past' && !currentHoleResult;
   const isHolePlayable = holeAvailability === 'available' && !currentHoleResult;
+
+  // Fetch word from Wordle API for classic mode
+  useEffect(() => {
+    if (!isClassicMode || !gameId || !startDate) return;
+    if (targetWord) return; // Already have a word
+    if (isHoleLocked) return; // Don't fetch for locked holes
+    if (fetchingWord) return;
+
+    const holeDate = getHoleAvailableDate(startDate, currentHole);
+    const dateStr = `${holeDate.getFullYear()}-${String(holeDate.getMonth() + 1).padStart(2, '0')}-${String(holeDate.getDate()).padStart(2, '0')}`;
+
+    setFetchingWord(true);
+    fetchDailyWordleWord(dateStr).then(word => {
+      if (word) {
+        setFetchedWords(prev => ({ ...prev, [currentHole]: word }));
+        updateWordForHole(gameId, roundNumber, currentHole - 1, word);
+      }
+      setFetchingWord(false);
+    });
+  }, [isClassicMode, gameId, startDate, currentHole, targetWord, isHoleLocked, fetchingWord, roundNumber, updateWordForHole]);
 
   // Auto-navigate to today's hole on mount
   const hasAutoNavigated = useRef(false);
@@ -305,8 +331,18 @@ export default function GamePlayPage() {
         </div>
       )}
 
+      {/* Loading word from API (Classic mode) */}
+      {!isHoleLocked && !isHolePast && isClassicMode && !targetWord && (
+        <div className="text-center py-5">
+          <div className="spinner-border text-success mb-3" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="text-muted">Fetching today's Wordle word...</p>
+        </div>
+      )}
+
       {/* Current Hole Info */}
-      {!isHoleLocked && !isHolePast && (
+      {!isHoleLocked && !isHolePast && (!isClassicMode || targetWord) && (
         <>
           <div className="text-center mb-2">
             <h5 className="mb-1">
@@ -316,6 +352,9 @@ export default function GamePlayPage() {
                 ({wordLength} letters, {maxGuesses} guesses)
               </small>
             </h5>
+            {isClassicMode && !currentHoleResult && (
+              <small className="text-muted">Classic Wordle</small>
+            )}
             {hasStartWord && !currentHoleResult && (
               <small className="text-info">
                 Start word: <strong>{startWord}</strong> (auto-played as your first guess)

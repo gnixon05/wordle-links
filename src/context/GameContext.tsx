@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { Game, RoundConfig, RoundResult, HoleResult, HoleConfig, GameVisibility, ThemeOption, StartWordMode } from '../types';
+import { Game, RoundConfig, RoundResult, HoleResult, HoleConfig, GameVisibility, ThemeOption, StartWordMode, WordMode } from '../types';
 import {
   getGames,
   saveGame,
@@ -26,8 +26,9 @@ interface CreateGameData {
   invitedUserIds: string[];
   roundConfig: {
     holes: HoleConfig[];
-    frontNineTheme: ThemeOption;
-    backNineTheme: ThemeOption;
+    wordMode?: WordMode;
+    frontNineTheme?: ThemeOption;
+    backNineTheme?: ThemeOption;
     startWordMode?: StartWordMode; // legacy: applies to all holes
     startWordTheme?: ThemeOption; // legacy: applies to all holes
     startWordModeFront?: StartWordMode;
@@ -46,6 +47,7 @@ interface GameContextType {
   getGame: (gameId: string) => Game | undefined;
   getWordsForRound: (gameId: string, roundNumber: number) => string[];
   getStartWordsForRound: (gameId: string, roundNumber: number) => string[];
+  updateWordForHole: (gameId: string, roundNumber: number, holeIndex: number, word: string) => void;
   submitHoleResult: (gameId: string, roundNumber: number, holeResult: HoleResult) => void;
   getUserResult: (gameId: string, roundNumber: number, userId: string) => RoundResult | undefined;
   getGameResults: (gameId: string) => RoundResult[];
@@ -76,6 +78,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const createGame = useCallback((data: CreateGameData): Game => {
     if (!user) throw new Error('Must be logged in to create a game');
 
+    const wordMode = data.roundConfig.wordMode || 'custom';
+
     // Resolve start word modes: prefer per-nine fields, fall back to legacy
     const startWordModeFront = data.roundConfig.startWordModeFront || data.roundConfig.startWordMode || 'none';
     const startWordModeBack = data.roundConfig.startWordModeBack || data.roundConfig.startWordMode || 'none';
@@ -93,6 +97,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       rounds: [{
         roundNumber: 1,
         holes: data.roundConfig.holes,
+        wordMode,
         frontNineTheme: data.roundConfig.frontNineTheme,
         backNineTheme: data.roundConfig.backNineTheme,
         startDate: new Date().toISOString(),
@@ -105,16 +110,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
     };
 
-    // Generate target words for round 1 (no previously used words for a new game)
     const round = game.rounds[0];
-    const words = generateRoundWords(
-      round.holes,
-      round.frontNineTheme || 'golf',
-      round.backNineTheme || 'golf',
-    );
 
-    // Generate start words per hole based on front/back nine modes
-    const hasAnyStartWords = startWordModeFront !== 'none' || startWordModeBack !== 'none';
+    let words: string[];
+    if (wordMode === 'classic') {
+      // Classic mode: words will be fetched from the Wordle API on demand
+      // Store empty strings as placeholders for all 18 holes
+      words = round.holes.map(() => '');
+    } else {
+      // Custom mode: generate target words from themed lists
+      words = generateRoundWords(
+        round.holes,
+        round.frontNineTheme || 'golf',
+        round.backNineTheme || 'golf',
+      );
+    }
+
+    // Generate start words per hole based on front/back nine modes (custom mode only)
+    const hasAnyStartWords = wordMode === 'custom' && (startWordModeFront !== 'none' || startWordModeBack !== 'none');
     let startWords: string[] = [];
     if (hasAnyStartWords) {
       startWords = round.holes.map((hole, idx) => {
@@ -178,6 +191,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const getStartWordsForRound = useCallback((gameId: string, roundNumber: number): string[] => {
     return getGameStartWords(gameId, roundNumber);
+  }, []);
+
+  const updateWordForHole = useCallback((gameId: string, roundNumber: number, holeIndex: number, word: string) => {
+    const words = getGameWords(gameId, roundNumber);
+    if (words.length > holeIndex) {
+      words[holeIndex] = word;
+      saveGameWords(gameId, roundNumber, words);
+    }
   }, []);
 
   const submitHoleResult = useCallback((gameId: string, roundNumber: number, holeResult: HoleResult) => {
@@ -352,6 +373,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       getGame,
       getWordsForRound,
       getStartWordsForRound,
+      updateWordForHole,
       submitHoleResult,
       getUserResult,
       getGameResults,

@@ -126,8 +126,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       );
     }
 
-    // Generate start words per hole based on front/back nine modes (custom mode only)
-    const hasAnyStartWords = wordMode === 'custom' && (startWordModeFront !== 'none' || startWordModeBack !== 'none');
+    // Generate start words per hole based on front/back nine modes
+    const hasAnyStartWords = startWordModeFront !== 'none' || startWordModeBack !== 'none';
     let startWords: string[] = [];
     if (hasAnyStartWords) {
       startWords = round.holes.map((hole, idx) => {

@@ -1,10 +1,10 @@
-# Wordle Links
+# Wordle Tour
 
 A golf-themed Wordle game where every guess counts as a stroke. Play 18 holes of word puzzles, compete with friends, and climb the leaderboard.
 
 ## Overview
 
-Wordle Links combines the word-guessing mechanics of [Wordle](https://www.nytimes.com/games/wordle/index.html) with golf scoring. Each round consists of 18 holes, and each hole presents a word puzzle. Your number of guesses equals your strokes — solve it under par for a birdie or eagle, or take too many for a bogey.
+Wordle Tour combines the word-guessing mechanics of [Wordle](https://www.nytimes.com/games/wordle/index.html) with golf scoring. Each round consists of 18 holes, and each hole presents a word puzzle. Your number of guesses equals your strokes — solve it under par for a birdie or eagle, or take too many for a bogey.
 
 ### Key Features
 
@@ -47,7 +47,7 @@ Scoring adjusts based on par: a Par 3 hole has 5 max guesses, Par 5 has 7 max gu
 ## Project Structure
 
 ```
-wordle-links/
+wordle-tour/
 ├── public/                    # Static assets
 ├── src/
 │   ├── assets/               # Images and static resources
@@ -92,8 +92,8 @@ wordle-links/
 1. **Clone the repository:**
 
    ```bash
-   git clone https://github.com/your-username/wordle-links.git
-   cd wordle-links
+   git clone https://github.com/your-username/wordle-tour.git
+   cd wordle-tour
    ```
 
 2. **Install dependencies:**
@@ -143,14 +143,14 @@ This outputs optimized static files to the `dist/` directory.
 
 ## AWS EC2 Deployment
 
-This guide covers deploying Wordle Links to an AWS EC2 instance with Nginx as a reverse proxy and HTTPS via Let's Encrypt.
+This guide covers deploying Wordle Tour to an AWS EC2 instance with Nginx as a reverse proxy and HTTPS via Let's Encrypt.
 
 ### 1. Launch an EC2 Instance
 
 1. Go to the [AWS EC2 Console](https://console.aws.amazon.com/ec2/)
 2. Click **Launch Instance**
 3. Configure:
-   - **Name:** `wordle-links`
+   - **Name:** `wordle-tour`
    - **AMI:** Amazon Linux 2023 or Ubuntu 22.04 LTS
    - **Instance type:** `t2.micro` (free tier eligible) or `t3.small`
    - **Key pair:** Create or select an existing key pair
@@ -208,8 +208,8 @@ sudo apt install -y git
 ```bash
 # Clone the repository
 cd /home/ec2-user   # or /home/ubuntu on Ubuntu
-git clone https://github.com/your-username/wordle-links.git
-cd wordle-links
+git clone https://github.com/your-username/wordle-tour.git
+cd wordle-tour
 
 # Install dependencies
 npm install
@@ -228,7 +228,7 @@ npm run build
 Create an Nginx configuration file:
 
 ```bash
-sudo nano /etc/nginx/conf.d/wordle-links.conf
+sudo nano /etc/nginx/conf.d/wordle-tour.conf
 ```
 
 Add the following configuration:
@@ -238,7 +238,7 @@ server {
     listen 80;
     server_name your-domain.com;  # or your EC2 public IP
 
-    root /home/ec2-user/wordle-links/dist;
+    root /home/ec2-user/wordle-tour/dist;
     index index.html;
 
     # Gzip compression
@@ -283,8 +283,8 @@ sudo systemctl restart nginx
 
 ```bash
 # Ensure Nginx can read the dist directory
-sudo chmod -R 755 /home/ec2-user/wordle-links/dist
-sudo chown -R ec2-user:ec2-user /home/ec2-user/wordle-links
+sudo chmod -R 755 /home/ec2-user/wordle-tour/dist
+sudo chown -R ec2-user:ec2-user /home/ec2-user/wordle-tour
 ```
 
 ### 7. Set Up HTTPS with Let's Encrypt (Optional but Recommended)
@@ -325,7 +325,7 @@ nano /home/ec2-user/deploy.sh
 #!/bin/bash
 set -e
 
-cd /home/ec2-user/wordle-links
+cd /home/ec2-user/wordle-tour
 git pull origin master
 npm install
 npm run build
@@ -346,7 +346,7 @@ Run it whenever you push updates:
 ### 9. Verify Deployment
 
 1. Open your browser and navigate to `http://your-ec2-public-ip` (or your domain)
-2. You should see the Wordle Links home page
+2. You should see the Wordle Tour home page
 3. Test the full flow: sign up, create a game, play a few holes
 
 ### Troubleshooting
@@ -354,7 +354,7 @@ Run it whenever you push updates:
 | Issue | Solution |
 |:------|:---------|
 | 502 Bad Gateway | Check Nginx config with `sudo nginx -t` and logs at `/var/log/nginx/error.log` |
-| Permission denied | Run `sudo chmod -R 755 /home/ec2-user/wordle-links/dist` |
+| Permission denied | Run `sudo chmod -R 755 /home/ec2-user/wordle-tour/dist` |
 | Page not found on refresh | Ensure the `try_files` directive is in your Nginx config |
 | Port 80 blocked | Check EC2 Security Group allows inbound HTTP (port 80) |
 | Build fails | Check Node.js version with `node -v` (needs >= 18) |

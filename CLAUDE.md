@@ -1,13 +1,13 @@
-# CLAUDE.md — AI Assistant Guide for wordle-links
+# CLAUDE.md — AI Assistant Guide for wordle-tour
 
 ## Project Overview
 
-**wordle-links** is a golf-themed Wordle game. The project is in its initial stage — only a README and LICENSE (CC0 1.0 / public domain) exist. No source code, build tooling, or dependencies have been set up yet.
+**wordle-tour** is a golf-themed Wordle game. The project is in its initial stage — only a README and LICENSE (CC0 1.0 / public domain) exist. No source code, build tooling, or dependencies have been set up yet.
 
 ## Repository Structure
 
 ```
-wordle-links/
+wordle-tour/
 ├── CLAUDE.md        # This file — AI assistant guidance
 ├── LICENSE          # CC0 1.0 Universal (public domain)
 └── README.md        # Project description

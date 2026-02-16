@@ -26,7 +26,7 @@ export default function HomePage() {
         <div className="hero-overlay" />
         <div className="hero-content">
           <h1 className="display-3 fw-bold mb-3">
-            <span className="me-2">&#9971;</span>Wordle Links
+            <span className="me-2">&#9971;</span>Wordle Tour
           </h1>
           <p className="lead mb-4" style={{ maxWidth: '600px', margin: '0 auto' }}>
             The golf-themed word game where every guess counts as a stroke.

@@ -133,6 +133,11 @@ export interface UserStats {
   bogeys: number;
   doubleBogeys: number;
   currentStreak: number;
+  // Wordle-style stats (per hole)
+  holesSolved: number;
+  winPercentage: number;
+  maxStreak: number;
+  guessDistribution: Record<number, number>; // guessCount -> number of holes
 }
 
 export interface KeyboardKey {

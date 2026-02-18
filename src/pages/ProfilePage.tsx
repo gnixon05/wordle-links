@@ -49,7 +49,14 @@ export default function ProfilePage() {
     bogeys: 0,
     doubleBogeys: 0,
     currentStreak: 0,
+    holesSolved: 0,
+    winPercentage: 0,
+    maxStreak: 0,
+    guessDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 },
   };
+
+  // Collect all holes in chronological order for streak calculation
+  const allHolesOrdered: { solved: boolean; guessCount: number }[] = [];
 
   // Calculate hole-level stats
   allResults.forEach(r => {
@@ -66,10 +73,43 @@ export default function ProfilePage() {
       else if (diff === 0) stats.pars++;
       else if (diff === 1) stats.bogeys++;
       else stats.doubleBogeys++;
+
+      // Wordle-style stats
+      if (h.solved) {
+        stats.holesSolved++;
+        const guesses = h.guesses.length;
+        if (guesses >= 1 && guesses <= 7) {
+          stats.guessDistribution[guesses] = (stats.guessDistribution[guesses] || 0) + 1;
+        }
+      }
+
+      allHolesOrdered.push({ solved: h.solved, guessCount: h.guesses.length });
     });
   });
 
+  // Calculate win percentage
   const totalHoles = stats.holesPlayed;
+  stats.winPercentage = totalHoles > 0
+    ? Math.round((stats.holesSolved / totalHoles) * 100)
+    : 0;
+
+  // Calculate current streak and max streak
+  let currentStreak = 0;
+  let maxStreak = 0;
+  let tempStreak = 0;
+  for (const hole of allHolesOrdered) {
+    if (hole.solved) {
+      tempStreak++;
+      if (tempStreak > maxStreak) maxStreak = tempStreak;
+    } else {
+      tempStreak = 0;
+    }
+  }
+  // Current streak is the streak at the end (most recent holes)
+  currentStreak = tempStreak;
+  stats.currentStreak = currentStreak;
+  stats.maxStreak = maxStreak;
+
   stats.averageScorePerHole = totalHoles > 0
     ? Math.round(stats.totalScore / totalHoles * 100) / 100
     : 0;
@@ -234,6 +274,62 @@ export default function ProfilePage() {
               <div className="stat-value">{stats.bestRoundScore || '-'}</div>
               <div className="stat-label">Best Round</div>
             </div>
+          </div>
+
+          {/* Wordle-style Stats */}
+          <h5 className="fw-bold mb-3" style={{ color: 'var(--wl-green-dark)' }}>Wordle Stats</h5>
+          <div className="stats-grid mb-3">
+            <div className="stat-card">
+              <div className="stat-value">{stats.holesPlayed}</div>
+              <div className="stat-label">Played</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{stats.winPercentage}</div>
+              <div className="stat-label">Win %</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{stats.currentStreak}</div>
+              <div className="stat-label">Current Streak</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{stats.maxStreak}</div>
+              <div className="stat-label">Max Streak</div>
+            </div>
+          </div>
+
+          {/* Guess Distribution */}
+          <h6 className="fw-bold mb-2" style={{ color: 'var(--wl-green-dark)' }}>Guess Distribution</h6>
+          <div className="mb-4">
+            {[1, 2, 3, 4, 5, 6, 7].map(guessNum => {
+              const count = stats.guessDistribution[guessNum] || 0;
+              const maxCount = Math.max(...Object.values(stats.guessDistribution), 1);
+              const widthPct = Math.max((count / maxCount) * 100, count > 0 ? 8 : 4);
+              return (
+                <div key={guessNum} className="d-flex align-items-center mb-1" style={{ gap: '8px' }}>
+                  <div style={{ width: '14px', textAlign: 'right', fontSize: '0.85rem', fontWeight: 600 }}>
+                    {guessNum}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        width: `${widthPct}%`,
+                        minWidth: '24px',
+                        backgroundColor: count > 0 ? 'var(--wl-green, #6aaa64)' : 'var(--wl-input-border, #787c7e)',
+                        color: '#fff',
+                        padding: '2px 8px',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        textAlign: 'right',
+                        borderRadius: '2px',
+                        transition: 'width 0.3s ease',
+                      }}
+                    >
+                      {count}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <h5 className="fw-bold mb-3" style={{ color: 'var(--wl-green-dark)' }}>Score Distribution</h5>

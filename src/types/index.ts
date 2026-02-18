@@ -139,3 +139,13 @@ export interface KeyboardKey {
   key: string;
   status: LetterStatus | 'unused';
 }
+
+export interface WordleImportedStats {
+  gamesPlayed: number;
+  gamesWon: number;
+  currentStreak: number;
+  maxStreak: number;
+  guessDistribution: Record<string, number>; // "1" through "6" and "fail"
+  importedAt: string; // ISO date
+  source: 'manual' | 'json'; // how the stats were imported
+}

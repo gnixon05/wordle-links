@@ -1,5 +1,5 @@
 import { GuessRow, HolePar, LetterGuess, LetterStatus, HoleResult, KeyboardKey, ThemeOption } from '../types';
-import { getWordListByLength, getThemedWordsForTarget, getWordListByLengthForTarget } from '../data/wordLists';
+import { getThemedWordsForTarget, getWordListByLengthForTarget, isValidGuess } from '../data/wordLists';
 
 /**
  * Evaluate a guess against the target word.
@@ -107,11 +107,11 @@ export function calculateRoundScoreRelativeToPar(holes: HoleResult[], holeConfig
 }
 
 /**
- * Validate if a word is in the valid word list
+ * Validate if a word is a valid guess.
+ * Uses the expanded word lists for comprehensive coverage of English words.
  */
 export function isValidWord(word: string, length: number): boolean {
-  const validWords = getWordListByLength(length);
-  return validWords.includes(word.toUpperCase());
+  return isValidGuess(word, length);
 }
 
 /**

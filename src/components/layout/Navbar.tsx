@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useGame } from '../../context/GameContext';
@@ -9,10 +10,14 @@ export default function Navbar() {
   const { getUserInvitations } = useGame();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const invitations = isAuthenticated ? getUserInvitations() : [];
 
+  const closeMenu = () => setMenuOpen(false);
+
   const handleLogout = () => {
+    closeMenu();
     logout();
     navigate('/');
   };
@@ -20,7 +25,7 @@ export default function Navbar() {
   return (
     <nav className="navbar navbar-expand-lg navbar-dark navbar-golf sticky-top">
       <div className="container">
-        <Link className="navbar-brand d-flex align-items-center" to="/">
+        <Link className="navbar-brand d-flex align-items-center" to="/" onClick={closeMenu}>
           <span className="me-2">&#9971;</span>
           Wordle Tour
         </Link>
@@ -28,27 +33,26 @@ export default function Navbar() {
         <button
           className="navbar-toggler"
           type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#navMain"
           aria-controls="navMain"
-          aria-expanded="false"
+          aria-expanded={menuOpen}
           aria-label="Toggle navigation"
+          onClick={() => setMenuOpen(prev => !prev)}
         >
           <span className="navbar-toggler-icon"></span>
         </button>
 
-        <div className="collapse navbar-collapse" id="navMain">
+        <div className={`collapse navbar-collapse${menuOpen ? ' show' : ''}`} id="navMain">
           <ul className="navbar-nav me-auto mb-2 mb-lg-0">
             <li className="nav-item">
-              <Link className="nav-link" to="/">Home</Link>
+              <Link className="nav-link" to="/" onClick={closeMenu}>Home</Link>
             </li>
             {isAuthenticated && (
               <>
                 <li className="nav-item">
-                  <Link className="nav-link" to="/dashboard">Dashboard</Link>
+                  <Link className="nav-link" to="/dashboard" onClick={closeMenu}>Dashboard</Link>
                 </li>
                 <li className="nav-item">
-                  <Link className="nav-link" to="/leaderboard">Leaderboard</Link>
+                  <Link className="nav-link" to="/leaderboard" onClick={closeMenu}>Leaderboard</Link>
                 </li>
               </>
             )}
@@ -58,7 +62,7 @@ export default function Navbar() {
             {isAuthenticated && user ? (
               <>
                 <li className="nav-item me-2">
-                  <Link className="nav-link position-relative" to="/profile">
+                  <Link className="nav-link position-relative" to="/profile" onClick={closeMenu}>
                     <span className="d-flex align-items-center gap-2">
                       <Avatar avatar={user.avatar} size="small" />
                       <span className="d-none d-md-inline">{displayName}</span>
@@ -84,10 +88,10 @@ export default function Navbar() {
             ) : (
               <>
                 <li className="nav-item">
-                  <Link className="nav-link" to="/login">Login</Link>
+                  <Link className="nav-link" to="/login" onClick={closeMenu}>Login</Link>
                 </li>
                 <li className="nav-item">
-                  <Link className="btn btn-warning btn-sm ms-lg-2" to="/signup">Sign Up</Link>
+                  <Link className="btn btn-warning btn-sm ms-lg-2" to="/signup" onClick={closeMenu}>Sign Up</Link>
                 </li>
               </>
             )}

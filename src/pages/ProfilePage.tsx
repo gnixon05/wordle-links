@@ -19,12 +19,11 @@ export default function ProfilePage() {
   const [lastName, setLastName] = useState(user?.lastName || '');
   const [nickname, setNickname] = useState(user?.nickname || '');
   const [avatar, setAvatar] = useState<AvatarChoice>(user?.avatar || { category: 'golfball', variant: 'cowboy' });
+  const [, setStatsVersion] = useState(0);
 
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
   }
-
-  const [, setStatsVersion] = useState(0);
   const invitations = getUserInvitations();
   const allResults = getUserResults(user.id);
   const myGames = getUserGames();

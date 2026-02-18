@@ -6,6 +6,7 @@ import { useTheme } from '../context/ThemeContext';
 import { AvatarChoice, UserStats, HolePar } from '../types';
 import Avatar from '../components/common/Avatar';
 import AvatarPicker from '../components/common/AvatarPicker';
+import WordleStatsImport from '../components/game/WordleStatsImport';
 import { getGameById } from '../utils/storage';
 
 export default function ProfilePage() {
@@ -23,6 +24,7 @@ export default function ProfilePage() {
     return <Navigate to="/login" replace />;
   }
 
+  const [, setStatsVersion] = useState(0);
   const invitations = getUserInvitations();
   const allResults = getUserResults(user.id);
   const myGames = getUserGames();
@@ -197,6 +199,11 @@ export default function ProfilePage() {
               </div>
             </div>
           )}
+
+          {/* Wordle Stats Import */}
+          <div className="mt-3">
+            <WordleStatsImport userId={user.id} onStatsUpdated={() => setStatsVersion(v => v + 1)} />
+          </div>
         </div>
 
         {/* Stats */}

@@ -1,4 +1,8 @@
 // Golf-themed and general word lists organized by length
+// Expanded valid guess word lists are imported from separate files
+import { EXPANDED_VALID_4 } from './validGuessWords4';
+import { EXPANDED_VALID_5 } from './validGuessWords5';
+import { EXPANDED_VALID_6 } from './validGuessWords6';
 
 export const GOLF_WORDS_4: string[] = [
   'CLUB', 'IRON', 'PUTT', 'HOOK', 'DRAW', 'FADE', 'CHIP', 'HOLE', 'FLAG',
@@ -225,6 +229,26 @@ export function getWordListByLength(length: number): string[] {
     case 5: return VALID_WORDS_5;
     case 6: return VALID_WORDS_6;
     default: return VALID_WORDS_5;
+  }
+}
+
+// Build Sets for O(1) guess validation using expanded word lists
+// These include all themed words + the comprehensive expanded word lists
+const VALID_GUESS_SET_4 = new Set([...VALID_WORDS_4, ...EXPANDED_VALID_4]);
+const VALID_GUESS_SET_5 = new Set([...VALID_WORDS_5, ...EXPANDED_VALID_5]);
+const VALID_GUESS_SET_6 = new Set([...VALID_WORDS_6, ...EXPANDED_VALID_6]);
+
+/**
+ * Check if a word is a valid guess.
+ * Uses the expanded word lists for comprehensive coverage of English words.
+ */
+export function isValidGuess(word: string, length: number): boolean {
+  const upper = word.toUpperCase();
+  switch (length) {
+    case 4: return VALID_GUESS_SET_4.has(upper);
+    case 5: return VALID_GUESS_SET_5.has(upper);
+    case 6: return VALID_GUESS_SET_6.has(upper);
+    default: return VALID_GUESS_SET_5.has(upper);
   }
 }
 

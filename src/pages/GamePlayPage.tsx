@@ -67,6 +67,11 @@ export default function GamePlayPage() {
   const completedHoles: HoleResult[] = userResult?.holes || [];
   const currentHoleResult = completedHoles.find(h => h.holeNumber === currentHole);
 
+  // Stable primitives derived from currentHoleResult for use as useEffect dependencies.
+  // getUserResult reads from localStorage every render, producing new object references
+  // even when the data hasn't changed, which would cause infinite re-render loops.
+  const currentHoleCompleted = !!currentHoleResult;
+
   // Check hole availability
   const holeAvailability = startDate ? getHoleAvailability(startDate, currentHole) : 'available';
   const isHoleLocked = holeAvailability === 'locked';
@@ -119,7 +124,8 @@ export default function GamePlayPage() {
       setCurrentGuess('');
       setStartWordApplied(false);
     }
-  }, [currentHole, currentHoleResult]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentHole, currentHoleCompleted]);
 
   // Auto-apply start word as first guess when hole is playable and has a start word
   const startWordRef = useRef(false);
@@ -160,8 +166,9 @@ export default function GamePlayPage() {
     }
     // Reset ref when hole changes
     return () => { startWordRef.current = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    hasStartWord, isHolePlayable, startWordApplied, currentHoleResult,
+    hasStartWord, isHolePlayable, startWordApplied, currentHoleCompleted,
     guesses.length, targetWord, startWord, par, currentHole, gameId,
     user, roundNumber, submitHoleResult,
   ]);

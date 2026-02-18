@@ -220,7 +220,7 @@ export function getTodayDateString(): string {
  */
 export async function fetchDailyWordleWord(dateStr: string): Promise<string | null> {
   try {
-    const response = await fetch(`https://www.nytimes.com/svc/wordle/v2/${dateStr}.json`);
+    const response = await fetch(`/api/wordle/${dateStr}.json`);
     if (!response.ok) return null;
     const data = await response.json();
     return data.solution?.toUpperCase() || null;

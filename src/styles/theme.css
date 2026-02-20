@@ -109,17 +109,38 @@
 
 [data-theme="dark"] .table {
   color: var(--wl-body-text);
+  --bs-table-bg: var(--wl-card-bg);
+  --bs-table-color: var(--wl-body-text);
+  --bs-table-border-color: var(--wl-input-border);
+  --bs-table-hover-bg: var(--wl-table-hover);
+  --bs-table-hover-color: var(--wl-body-text);
 }
 
 [data-theme="dark"] .table-light,
 [data-theme="dark"] .table thead th {
   background-color: var(--wl-table-header-bg) !important;
   color: var(--wl-body-text);
+  --bs-table-bg: var(--wl-table-header-bg);
+  border-color: var(--wl-input-border);
 }
 
 [data-theme="dark"] .table-hover tbody tr:hover {
   background-color: var(--wl-table-hover);
   color: var(--wl-body-text);
+}
+
+[data-theme="dark"] .table-bordered > :not(caption) > * > * {
+  border-color: var(--wl-input-border) !important;
+}
+
+[data-theme="dark"] .scoring-guide thead th {
+  background-color: var(--wl-green-dark) !important;
+  color: white !important;
+}
+
+[data-theme="dark"] .badge.bg-dark {
+  background-color: #444 !important;
+  border: 1px solid var(--wl-input-border);
 }
 
 [data-theme="dark"] .list-group-item {

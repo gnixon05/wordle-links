@@ -114,7 +114,7 @@ export default function HomePage() {
           <div className="row justify-content-center">
             <div className="col-lg-8">
               <div className="table-responsive">
-                <table className="table table-hover text-center">
+                <table className="table table-hover text-center scoring-guide">
                   <thead style={{ backgroundColor: 'var(--wl-green-dark)', color: 'white' }}>
                     <tr>
                       <th>Guesses</th>

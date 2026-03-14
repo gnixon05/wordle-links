@@ -52,6 +52,9 @@ export default function Navbar() {
                   <Link className="nav-link" to="/dashboard" onClick={closeMenu}>Dashboard</Link>
                 </li>
                 <li className="nav-item">
+                  <Link className="nav-link" to="/daily" onClick={closeMenu}>Daily</Link>
+                </li>
+                <li className="nav-item">
                   <Link className="nav-link" to="/leaderboard" onClick={closeMenu}>Leaderboard</Link>
                 </li>
               </>

@@ -41,6 +41,7 @@ export default function GamePlayPage() {
   const [showMessage, setShowMessage] = useState(false);
   const [startWordApplied, setStartWordApplied] = useState(false);
   const [fetchingWord, setFetchingWord] = useState(false);
+  const [fetchFailed, setFetchFailed] = useState(false);
   const [fetchedWords, setFetchedWords] = useState<Record<number, string>>({});
 
   const game = gameId ? getGame(gameId) : undefined;
@@ -79,24 +80,33 @@ export default function GamePlayPage() {
   const isHolePlayable = holeAvailability === 'available' && !currentHoleResult;
 
   // Fetch word from Wordle API for classic mode
-  useEffect(() => {
+  const fetchWordForHole = useCallback(() => {
     if (!isClassicMode || !gameId || !startDate) return;
-    if (targetWord) return; // Already have a word
-    if (isHoleLocked) return; // Don't fetch for locked holes
-    if (fetchingWord) return;
+    if (targetWord) return;
+    if (isHoleLocked) return;
 
     const holeDate = getHoleAvailableDate(startDate, currentHole);
     const dateStr = `${holeDate.getFullYear()}-${String(holeDate.getMonth() + 1).padStart(2, '0')}-${String(holeDate.getDate()).padStart(2, '0')}`;
 
     setFetchingWord(true);
+    setFetchFailed(false);
     fetchDailyWordleWord(dateStr).then(word => {
       if (word) {
         setFetchedWords(prev => ({ ...prev, [currentHole]: word }));
         updateWordForHole(gameId, roundNumber, currentHole - 1, word);
+      } else {
+        setFetchFailed(true);
       }
       setFetchingWord(false);
     });
-  }, [isClassicMode, gameId, startDate, currentHole, targetWord, isHoleLocked, fetchingWord, roundNumber, updateWordForHole]);
+  }, [isClassicMode, gameId, startDate, currentHole, targetWord, isHoleLocked, roundNumber, updateWordForHole]);
+
+  useEffect(() => {
+    if (!isClassicMode || !gameId || !startDate) return;
+    if (targetWord || isHoleLocked || fetchingWord) return;
+    fetchWordForHole();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isClassicMode, gameId, startDate, currentHole, targetWord, isHoleLocked]);
 
   // Auto-navigate to today's hole on mount
   const hasAutoNavigated = useRef(false);
@@ -123,6 +133,7 @@ export default function GamePlayPage() {
       setSolved(false);
       setCurrentGuess('');
       setStartWordApplied(false);
+      setFetchFailed(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentHole, currentHoleCompleted]);
@@ -365,10 +376,25 @@ export default function GamePlayPage() {
       {/* Loading word from API (Classic mode) */}
       {!isHoleLocked && !isHolePast && isClassicMode && !targetWord && (
         <div className="text-center py-5">
-          <div className="spinner-border text-success mb-3" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="text-muted">Fetching today's Wordle word...</p>
+          {fetchFailed ? (
+            <>
+              <p className="text-muted mb-2">Unable to fetch today's Wordle word.</p>
+              <button
+                className="btn btn-success btn-sm"
+                onClick={fetchWordForHole}
+                disabled={fetchingWord}
+              >
+                {fetchingWord ? 'Retrying...' : 'Retry'}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="spinner-border text-success mb-3" role="status">
+                <span className="visually-hidden">Loading...</span>
+              </div>
+              <p className="text-muted">Fetching today's Wordle word...</p>
+            </>
+          )}
         </div>
       )}
 

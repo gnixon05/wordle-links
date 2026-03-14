@@ -4,11 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
 import { Game } from '../types';
 import Avatar from '../components/common/Avatar';
-import { getUserById } from '../utils/storage';
 import { getDisplayName } from '../utils/gameLogic';
 
 export default function DashboardPage() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, allUsers } = useAuth();
   const { getUserGames, getPublicGames, getUserInvitations, acceptInvitation, declineInvitation, joinGame, deleteGame } = useGame();
   const navigate = useNavigate();
   const [joinPassword, setJoinPassword] = useState('');
@@ -25,16 +24,16 @@ export default function DashboardPage() {
   const publicGames = getPublicGames().filter(g => !g.playerIds.includes(user.id));
   const invitations = getUserInvitations();
 
-  const handleJoinPublic = (gameId: string) => {
-    const result = joinGame(gameId);
+  const handleJoinPublic = async (gameId: string) => {
+    const result = await joinGame(gameId);
     if (result.success) {
       navigate(`/game/${gameId}`);
     }
   };
 
-  const handleJoinPrivate = (gameId: string) => {
+  const handleJoinPrivate = async (gameId: string) => {
     setJoinError('');
-    const result = joinGame(gameId, joinPassword);
+    const result = await joinGame(gameId, joinPassword);
     if (result.success) {
       setJoiningGameId(null);
       setJoinPassword('');
@@ -50,7 +49,7 @@ export default function DashboardPage() {
   };
 
   const getCreatorName = (creatorId: string): string => {
-    const creator = getUserById(creatorId);
+    const creator = allUsers.find(u => u.id === creatorId);
     if (!creator) return 'Unknown';
     return getDisplayName(creator.firstName, creator.lastName, creator.nickname);
   };
@@ -79,7 +78,7 @@ export default function DashboardPage() {
           </div>
           <div className="d-flex gap-1 flex-wrap mb-3">
             {game.playerIds.slice(0, 5).map(pid => {
-              const p = getUserById(pid);
+              const p = allUsers.find(u => u.id === pid);
               if (!p) return null;
               return <Avatar key={pid} avatar={p.avatar} size="small" />;
             })}

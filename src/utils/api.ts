@@ -1,4 +1,4 @@
-import { User } from '../types';
+import { User, Game, RoundResult, WordleImportedStats } from '../types';
 
 const SESSION_KEY = 'wl_session_token';
 
@@ -96,9 +96,20 @@ export async function apiGetMe(): Promise<{ user?: User; error?: string }> {
   if (result.data) {
     return { user: result.data.user };
   }
-  // Session expired or invalid — clear token
   setSessionToken(null);
   return { error: result.error };
+}
+
+// ---------- User API ----------
+
+export async function apiGetUsers(): Promise<User[]> {
+  const result = await apiRequest<User[]>('/api/users');
+  return result.data || [];
+}
+
+export async function apiGetUser(userId: string): Promise<User | null> {
+  const result = await apiRequest<User>(`/api/users/${userId}`);
+  return result.data || null;
 }
 
 export async function apiUpdateProfile(
@@ -113,9 +124,121 @@ export async function apiUpdateProfile(
   return { error: result.error };
 }
 
-export async function apiGetUsers(): Promise<User[]> {
-  const result = await apiRequest<User[]>('/api/users');
+// ---------- Games API ----------
+
+export async function apiGetGames(): Promise<Game[]> {
+  const result = await apiRequest<Game[]>('/api/games');
   return result.data || [];
+}
+
+export async function apiGetGame(gameId: string): Promise<Game | null> {
+  const result = await apiRequest<Game>(`/api/games/${gameId}`);
+  return result.data || null;
+}
+
+export async function apiCreateGame(game: Game, words: string[], startWords: string[]): Promise<Game | null> {
+  const result = await apiRequest<Game>('/api/games', {
+    method: 'POST',
+    body: JSON.stringify({ game, words, startWords }),
+  });
+  return result.data || null;
+}
+
+export async function apiUpdateGame(gameId: string, updates: {
+  playerIds?: string[];
+  invitedUserIds?: string[];
+  currentRound?: number;
+  rounds?: Game['rounds'];
+}): Promise<Game | null> {
+  const result = await apiRequest<Game>(`/api/games/${gameId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+  return result.data || null;
+}
+
+export async function apiDeleteGame(gameId: string): Promise<boolean> {
+  const result = await apiRequest<{ success: boolean }>(`/api/games/${gameId}`, {
+    method: 'DELETE',
+  });
+  return !!result.data?.success;
+}
+
+// ---------- Game Words API ----------
+
+export async function apiGetGameWords(gameId: string, roundNumber: number): Promise<string[]> {
+  const result = await apiRequest<string[]>(`/api/games/${gameId}/words/${roundNumber}`);
+  return result.data || [];
+}
+
+export async function apiSaveGameWords(gameId: string, roundNumber: number, words: string[]): Promise<void> {
+  await apiRequest(`/api/games/${gameId}/words/${roundNumber}`, {
+    method: 'PUT',
+    body: JSON.stringify({ words }),
+  });
+}
+
+// ---------- Game Start Words API ----------
+
+export async function apiGetStartWords(gameId: string, roundNumber: number): Promise<string[]> {
+  const result = await apiRequest<string[]>(`/api/games/${gameId}/start-words/${roundNumber}`);
+  return result.data || [];
+}
+
+export async function apiSaveStartWords(gameId: string, roundNumber: number, words: string[]): Promise<void> {
+  await apiRequest(`/api/games/${gameId}/start-words/${roundNumber}`, {
+    method: 'PUT',
+    body: JSON.stringify({ words }),
+  });
+}
+
+// ---------- Round Results API ----------
+
+export async function apiGetAllResults(): Promise<RoundResult[]> {
+  const result = await apiRequest<RoundResult[]>('/api/results');
+  return result.data || [];
+}
+
+export async function apiGetGameResults(gameId: string): Promise<RoundResult[]> {
+  const result = await apiRequest<RoundResult[]>(`/api/games/${gameId}/results`);
+  return result.data || [];
+}
+
+export async function apiGetUserResult(gameId: string, roundNumber: number, userId: string): Promise<RoundResult | null> {
+  const result = await apiRequest<RoundResult | null>(`/api/games/${gameId}/results/${roundNumber}/${userId}`);
+  return result.data || null;
+}
+
+export async function apiGetUserResults(userId: string): Promise<RoundResult[]> {
+  const result = await apiRequest<RoundResult[]>(`/api/users/${userId}/results`);
+  return result.data || [];
+}
+
+export async function apiSaveResult(result: RoundResult): Promise<void> {
+  await apiRequest('/api/results', {
+    method: 'PUT',
+    body: JSON.stringify(result),
+  });
+}
+
+// ---------- Wordle Imported Stats API ----------
+
+export async function apiGetWordleStats(userId: string): Promise<WordleImportedStats | null> {
+  const result = await apiRequest<WordleImportedStats | null>(`/api/users/${userId}/wordle-stats`);
+  return result.data || null;
+}
+
+export async function apiSaveWordleStats(userId: string, stats: WordleImportedStats): Promise<void> {
+  await apiRequest(`/api/users/${userId}/wordle-stats`, {
+    method: 'PUT',
+    body: JSON.stringify(stats),
+  });
+}
+
+export async function apiClearWordleStats(userId: string): Promise<void> {
+  await apiRequest(`/api/users/${userId}/wordle-stats`, {
+    method: 'DELETE',
+  });
 }
 
 export { getSessionToken, setSessionToken };

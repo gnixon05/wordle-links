@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
 import { useTheme } from '../context/ThemeContext';
-import { AvatarChoice, UserStats, HolePar } from '../types';
+import { AvatarChoice, UserStats, HolePar, RoundResult, Game } from '../types';
 import Avatar from '../components/common/Avatar';
 import AvatarPicker from '../components/common/AvatarPicker';
 import WordleStatsImport from '../components/game/WordleStatsImport';
-import { getGameById } from '../utils/storage';
+import { apiGetGames } from '../utils/api';
 
 export default function ProfilePage() {
   const { user, isAuthenticated, updateProfile, displayName } = useAuth();
@@ -21,11 +21,21 @@ export default function ProfilePage() {
   const [avatar, setAvatar] = useState<AvatarChoice>(user?.avatar || { category: 'golfball', variant: 'cowboy' });
   const [, setStatsVersion] = useState(0);
 
+  // Async-loaded data
+  const [allResults, setAllResults] = useState<RoundResult[]>([]);
+  const [allGamesData, setAllGamesData] = useState<Game[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    getUserResults(user.id).then(setAllResults);
+    apiGetGames().then(setAllGamesData);
+  }, [user, getUserResults]);
+
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
   }
+
   const invitations = getUserInvitations();
-  const allResults = getUserResults(user.id);
   const myGames = getUserGames();
 
   // Calculate stats
@@ -54,12 +64,10 @@ export default function ProfilePage() {
     guessDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 },
   };
 
-  // Collect all holes in chronological order for streak calculation
   const allHolesOrdered: { solved: boolean; guessCount: number }[] = [];
 
-  // Calculate hole-level stats
   allResults.forEach(r => {
-    const game = getGameById(r.gameId);
+    const game = allGamesData.find(g => g.id === r.gameId);
     const round = game?.rounds.find(rd => rd.roundNumber === r.roundNumber);
 
     r.holes.forEach(h => {
@@ -73,7 +81,6 @@ export default function ProfilePage() {
       else if (diff === 1) stats.bogeys++;
       else stats.doubleBogeys++;
 
-      // Wordle-style stats
       if (h.solved) {
         stats.holesSolved++;
         const guesses = h.guesses.length;
@@ -86,13 +93,11 @@ export default function ProfilePage() {
     });
   });
 
-  // Calculate win percentage
   const totalHoles = stats.holesPlayed;
   stats.winPercentage = totalHoles > 0
     ? Math.round((stats.holesSolved / totalHoles) * 100)
     : 0;
 
-  // Calculate current streak and max streak
   let currentStreak = 0;
   let maxStreak = 0;
   let tempStreak = 0;
@@ -104,7 +109,6 @@ export default function ProfilePage() {
       tempStreak = 0;
     }
   }
-  // Current streak is the streak at the end (most recent holes)
   currentStreak = tempStreak;
   stats.currentStreak = currentStreak;
   stats.maxStreak = maxStreak;

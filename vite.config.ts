@@ -25,6 +25,14 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
+      '/api/games': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/api/results': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
     },
   },
 })

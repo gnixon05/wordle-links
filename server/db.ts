@@ -60,6 +60,7 @@ export function initializeDatabase(): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
       round_number INTEGER NOT NULL,
+      holes_json TEXT NOT NULL DEFAULT '[]',
       word_mode TEXT NOT NULL DEFAULT 'custom',
       front_nine_theme TEXT,
       back_nine_theme TEXT,
@@ -80,6 +81,32 @@ export function initializeDatabase(): void {
       total_score INTEGER NOT NULL DEFAULT 0,
       completed_at TEXT,
       UNIQUE(game_id, round_number, user_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS game_words (
+      game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+      round_number INTEGER NOT NULL,
+      words_json TEXT NOT NULL DEFAULT '[]',
+      PRIMARY KEY (game_id, round_number)
+    );
+
+    CREATE TABLE IF NOT EXISTS game_start_words (
+      game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+      round_number INTEGER NOT NULL,
+      words_json TEXT NOT NULL DEFAULT '[]',
+      PRIMARY KEY (game_id, round_number)
+    );
+
+    CREATE TABLE IF NOT EXISTS wordle_imported_stats (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      games_played INTEGER NOT NULL DEFAULT 0,
+      games_won INTEGER NOT NULL DEFAULT 0,
+      current_streak INTEGER NOT NULL DEFAULT 0,
+      max_streak INTEGER NOT NULL DEFAULT 0,
+      guess_distribution_json TEXT NOT NULL DEFAULT '{}',
+      imported_at TEXT NOT NULL DEFAULT (datetime('now')),
+      source TEXT NOT NULL DEFAULT 'manual',
+      PRIMARY KEY (user_id)
     );
 
     CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);

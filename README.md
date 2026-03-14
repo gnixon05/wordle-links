@@ -35,49 +35,67 @@ Wordle Links combines the word-guessing mechanics of [Wordle](https://www.nytime
 
 Scoring adjusts based on par: a Par 3 hole has 5 max guesses, Par 5 has 7 max guesses.
 
-## Tech Stack
+## Architecture
+
+Wordle Links has two components:
+
+1. **Frontend** — React 19 SPA served by Vite (dev) or any static file server (production)
+2. **Backend** — Express.js API server with SQLite database for persistent storage
+
+### Tech Stack
 
 - **React 19** with TypeScript
 - **Vite** for fast development and production builds
 - **Bootstrap 5** + React Bootstrap for responsive UI
 - **React Router** for client-side routing
-- **localStorage** for data persistence (no backend required)
+- **Express.js** API server (Node.js)
+- **SQLite** via better-sqlite3 for persistent data storage
+- **bcrypt** for secure password hashing
 - **Pexels API** for golf course imagery (optional)
+
+### Data Storage
+
+All data is stored in a SQLite database (`wordle-links.db`):
+
+| Table | Purpose |
+|:------|:--------|
+| `users` | User accounts with bcrypt-hashed passwords |
+| `sessions` | Bearer token sessions (365-day expiry) |
+| `games` | Game metadata (name, visibility, creator) |
+| `game_players` | Game-to-player membership |
+| `game_invitations` | Pending game invitations |
+| `rounds` | Round configs with hole pars and themes |
+| `round_results` | Player scores per round (holes stored as JSON) |
+| `game_words` | Target words per round (hidden from players) |
+| `game_start_words` | Forced first guesses per round |
+| `wordle_imported_stats` | Imported NYT Wordle statistics per user |
 
 ## Project Structure
 
 ```
 wordle-links/
-├── public/                    # Static assets
+├── server/                    # Backend API server
+│   ├── db.ts                  # SQLite database schema and initialization
+│   └── index.ts               # Express server with all API endpoints
 ├── src/
-│   ├── assets/               # Images and static resources
 │   ├── components/
-│   │   ├── common/           # Avatar, AvatarPicker
-│   │   ├── game/             # WordleBoard, Keyboard, GolfScorecard, HoleNavigator
-│   │   └── layout/           # Navbar, Footer, Layout
-│   ├── context/              # AuthContext, GameContext (React Context providers)
-│   ├── data/                 # Word lists, avatar definitions
-│   ├── pages/                # All route pages
-│   │   ├── HomePage.tsx
-│   │   ├── LoginPage.tsx
-│   │   ├── SignupPage.tsx
-│   │   ├── DashboardPage.tsx
-│   │   ├── CreateGamePage.tsx
-│   │   ├── GamePlayPage.tsx
-│   │   ├── GameResultsPage.tsx
-│   │   ├── ProfilePage.tsx
-│   │   └── LeaderboardPage.tsx
-│   ├── styles/               # Custom CSS (theme.css)
-│   ├── types/                # TypeScript type definitions
-│   ├── utils/                # Game logic, storage helpers, Pexels API
-│   ├── App.tsx               # Root component with routing
-│   └── main.tsx              # Entry point
-├── .env.example              # Environment variable template
-├── index.html                # HTML entry point
+│   │   ├── common/            # Avatar, AvatarPicker
+│   │   ├── game/              # WordleBoard, Keyboard, GolfScorecard, HoleNavigator
+│   │   └── layout/            # Navbar, Footer, Layout
+│   ├── context/               # AuthContext, GameContext, ThemeContext
+│   ├── data/                  # Word lists, avatar definitions
+│   ├── pages/                 # All route pages
+│   ├── styles/                # Custom CSS (theme.css)
+│   ├── types/                 # TypeScript type definitions
+│   ├── utils/                 # Game logic, API client, Pexels API
+│   ├── App.tsx                # Root component with routing
+│   └── main.tsx               # Entry point
+├── .env.example               # Environment variable template
+├── index.html                 # HTML entry point
 ├── package.json
 ├── tsconfig.json
 ├── tsconfig.app.json
-└── vite.config.ts
+└── vite.config.ts             # Vite config with dev proxy rules
 ```
 
 ## Local Development
@@ -116,41 +134,44 @@ wordle-links/
 
    Get a free API key at [pexels.com/api](https://www.pexels.com/api/). The app works without it using fallback images.
 
-4. **Start the development server:**
+4. **Start both the API server and frontend:**
 
    ```bash
+   npm run dev:all
+   ```
+
+   Or run them separately in two terminals:
+
+   ```bash
+   # Terminal 1 — API server (port 3001)
+   npm run dev:server
+
+   # Terminal 2 — Vite frontend (port 5173)
    npm run dev
    ```
+
+   The Vite dev server proxies `/api/*` requests to the Express backend automatically.
 
    The app will be available at `http://localhost:5173`.
 
 ### Available Scripts
 
-| Command           | Description                              |
-|:-------------------|:-----------------------------------------|
-| `npm run dev`      | Start development server with HMR        |
-| `npm run build`    | Type-check and build for production       |
-| `npm run preview`  | Preview production build locally          |
-| `npm run lint`     | Run ESLint                               |
+| Command             | Description                                        |
+|:---------------------|:---------------------------------------------------|
+| `npm run dev`        | Start Vite frontend dev server with HMR            |
+| `npm run dev:server` | Start Express API server with auto-reload (tsx)     |
+| `npm run dev:all`    | Start both API server and frontend concurrently     |
+| `npm run build`      | Type-check and build frontend for production        |
+| `npm run preview`    | Preview production build locally                    |
+| `npm run lint`       | Run ESLint                                         |
 
-### Building for Production
+## Deployment
 
-```bash
-npm run build
-```
-
-This outputs optimized static files to the `dist/` directory.
-
-## AWS Deployment
-
-Wordle Links is a static site — the production build outputs plain HTML, CSS, and JS to the `dist/` directory. This guide covers two AWS deployment options:
-
-- **[Option A: S3 + CloudFront](#option-a-s3--cloudfront)** — Recommended. Serverless, scalable, low-cost, and zero maintenance.
-- **[Option B: EC2 + Nginx](#option-b-ec2--nginx)** — Traditional server-based approach if you need more control.
+Wordle Links requires both a **static file server** (for the React frontend) and a **Node.js process** (for the Express API server). Below are two deployment options.
 
 ### Prerequisites (Both Options)
 
-1. Build the app locally:
+1. Build the frontend:
 
    ```bash
    npm install
@@ -167,139 +188,27 @@ Wordle Links is a static site — the production build outputs plain HTML, CSS, 
 
 ---
 
-### Option A: S3 + CloudFront
+### Option A: EC2 / VPS (Recommended)
 
-This is the recommended approach for static sites. No servers to manage, automatic scaling, and global CDN distribution.
+Since the app requires a Node.js backend, a server-based deployment is the simplest approach.
 
-#### 1. Create an S3 Bucket
+#### 1. Launch a Server
 
-1. Go to the [S3 Console](https://console.aws.amazon.com/s3/) and click **Create bucket**
-2. **Bucket name:** `wordle-links` (must be globally unique — adjust as needed)
-3. **Region:** Choose the region closest to your users
-4. Uncheck **Block all public access** (required for static website hosting)
-5. Acknowledge the public access warning and create the bucket
+- **AWS EC2:** `t2.micro` (free tier) with Amazon Linux 2023 or Ubuntu 22.04
+- **Other VPS:** DigitalOcean, Linode, Render, Railway, etc.
+- **Security group / firewall:** Allow ports **22** (SSH), **80** (HTTP), **443** (HTTPS)
 
-#### 2. Enable Static Website Hosting
-
-1. Open your bucket and go to **Properties**
-2. Scroll to **Static website hosting** and click **Edit**
-3. Enable it with:
-   - **Index document:** `index.html`
-   - **Error document:** `index.html` (required for SPA client-side routing)
-4. Save and note the **bucket website endpoint** URL
-
-#### 3. Set the Bucket Policy
-
-Go to **Permissions > Bucket policy** and add:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "PublicReadGetObject",
-      "Effect": "Allow",
-      "Principal": "*",
-      "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::wordle-links/*"
-    }
-  ]
-}
-```
-
-Replace `wordle-links` with your actual bucket name.
-
-#### 4. Upload the Build
-
-Using the [AWS CLI](https://aws.amazon.com/cli/):
+#### 2. Install Dependencies
 
 ```bash
-# Upload all files
-aws s3 sync dist/ s3://wordle-links --delete
-
-# Set cache headers for hashed assets (long-lived cache)
-aws s3 cp s3://wordle-links/assets/ s3://wordle-links/assets/ \
-  --recursive --metadata-directive REPLACE \
-  --cache-control "public, max-age=31536000, immutable"
-
-# Set short cache for index.html (so deploys take effect quickly)
-aws s3 cp s3://wordle-links/index.html s3://wordle-links/index.html \
-  --metadata-directive REPLACE \
-  --cache-control "public, max-age=60"
-```
-
-At this point, the site is live at your S3 website endpoint.
-
-#### 5. Add CloudFront (Recommended)
-
-CloudFront adds HTTPS support, global CDN caching, and better performance.
-
-1. Go to the [CloudFront Console](https://console.aws.amazon.com/cloudfront/) and click **Create distribution**
-2. **Origin domain:** Select your S3 bucket's **website endpoint** (use the static website hosting URL, not the bucket itself)
-3. **Viewer protocol policy:** Redirect HTTP to HTTPS
-4. **Default root object:** `index.html`
-5. Under **Error pages**, create a custom error response:
-   - **HTTP error code:** `403`
-   - **Response page path:** `/index.html`
-   - **HTTP response code:** `200`
-   - Repeat for error code `404`
-6. (Optional) Under **Alternate domain names**, add your custom domain and select an ACM certificate
-7. Create the distribution and wait for it to deploy (takes a few minutes)
-
-Your site is now available at `https://your-distribution-id.cloudfront.net`.
-
-#### 6. Set Up a Custom Domain (Optional)
-
-1. Register or transfer your domain in [Route 53](https://console.aws.amazon.com/route53/) (or your DNS provider)
-2. Request a free SSL certificate in [ACM](https://console.aws.amazon.com/acm/) (must be in `us-east-1` for CloudFront)
-3. Add your domain as an alternate domain name in your CloudFront distribution
-4. Create a Route 53 alias record pointing your domain to the CloudFront distribution
-
-#### Redeploying (S3 + CloudFront)
-
-```bash
-npm run build
-aws s3 sync dist/ s3://wordle-links --delete
-aws cloudfront create-invalidation --distribution-id YOUR_DIST_ID --paths "/*"
-```
-
----
-
-### Option B: EC2 + Nginx
-
-Use this approach if you prefer managing your own server or need server-side logic in the future.
-
-#### 1. Launch an EC2 Instance
-
-1. Go to the [EC2 Console](https://console.aws.amazon.com/ec2/) and click **Launch Instance**
-2. Configure:
-   - **Name:** `wordle-links`
-   - **AMI:** Amazon Linux 2023 or Ubuntu 22.04 LTS
-   - **Instance type:** `t2.micro` (free tier eligible)
-   - **Key pair:** Create or select an existing key pair
-   - **Security group:** Allow inbound on ports **22** (SSH), **80** (HTTP), **443** (HTTPS)
-3. Launch and note the public IP address
-
-#### 2. Connect and Install Dependencies
-
-```bash
-ssh -i your-key.pem ec2-user@your-ec2-public-ip
-# Ubuntu: ssh -i your-key.pem ubuntu@your-ec2-public-ip
-```
-
-**Amazon Linux 2023:**
-
-```bash
-sudo dnf update -y
-sudo dnf install -y nodejs20 npm nginx git
-```
-
-**Ubuntu 22.04:**
-
-```bash
+# Ubuntu
 sudo apt update && sudo apt upgrade -y
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs nginx git
+
+# Amazon Linux 2023
+sudo dnf update -y
+sudo dnf install -y nodejs20 npm nginx git
 ```
 
 #### 3. Clone and Build
@@ -312,27 +221,71 @@ npm install
 npm run build
 ```
 
-#### 4. Configure Nginx
+#### 4. Run the API Server with systemd
+
+Create `/etc/systemd/system/wordle-links-api.service`:
+
+```ini
+[Unit]
+Description=Wordle Links API Server
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/wordle-links
+ExecStart=/usr/bin/npx tsx server/index.ts
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=PORT=3001
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable wordle-links-api
+sudo systemctl start wordle-links-api
+
+# Check status
+sudo systemctl status wordle-links-api
+```
+
+#### 5. Configure Nginx
 
 Create `/etc/nginx/conf.d/wordle-links.conf`:
 
 ```nginx
 server {
     listen 80;
-    server_name your-domain.com;  # or your EC2 public IP
+    server_name your-domain.com;
 
-    root /home/ec2-user/wordle-links/dist;  # adjust for Ubuntu: /home/ubuntu/...
+    root /home/ubuntu/wordle-links/dist;
     index index.html;
 
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
     gzip_min_length 1000;
 
+    # Static frontend assets (long-lived cache for hashed files)
     location /assets/ {
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
 
+    # Proxy API requests to the Express backend
+    location /api/ {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # SPA fallback — serve index.html for all non-file routes
     location / {
         try_files $uri $uri/ /index.html;
     }
@@ -343,46 +296,72 @@ server {
 ```
 
 ```bash
-# Ubuntu only: remove the default site
-sudo rm -f /etc/nginx/sites-enabled/default
-
+sudo rm -f /etc/nginx/sites-enabled/default  # Ubuntu only
 sudo nginx -t
 sudo systemctl enable nginx
 sudo systemctl restart nginx
 ```
 
-#### 5. Set File Permissions
+#### 6. Add HTTPS with Let's Encrypt (Recommended)
 
 ```bash
-sudo chmod -R 755 ~/wordle-links/dist
-```
-
-#### 6. Add HTTPS with Let's Encrypt (Optional)
-
-Requires a domain name pointed to your EC2 instance.
-
-```bash
-# Amazon Linux 2023
-sudo dnf install -y certbot python3-certbot-nginx
-
-# Ubuntu 22.04
-sudo apt install -y certbot python3-certbot-nginx
-
-# Request certificate
+sudo apt install -y certbot python3-certbot-nginx   # Ubuntu
 sudo certbot --nginx -d your-domain.com
-
-# Verify auto-renewal
-sudo certbot renew --dry-run
+sudo certbot renew --dry-run  # verify auto-renewal
 ```
 
-#### Redeploying (EC2)
+#### Redeploying
 
 ```bash
 cd ~/wordle-links
 git pull origin master
 npm install
 npm run build
+sudo systemctl restart wordle-links-api
 ```
+
+---
+
+### Option B: S3 + CloudFront (Frontend) + Separate API Host
+
+If you want CDN-distributed frontend hosting, deploy the frontend to S3/CloudFront and the API server separately (e.g., on EC2, ECS, Lambda, or Railway).
+
+#### Frontend (S3 + CloudFront)
+
+1. **Create an S3 bucket** with static website hosting enabled
+2. **Set index and error documents** both to `index.html`
+3. **Upload the build:** `aws s3 sync dist/ s3://your-bucket --delete`
+4. **Create a CloudFront distribution** pointing to the S3 website endpoint
+5. **Add custom error responses** for 403 and 404 → `/index.html` with 200 status
+
+#### API Server
+
+Deploy the Express backend on any Node.js-capable platform:
+
+- **EC2:** Follow steps 2-4 from Option A above
+- **Railway / Render / Fly.io:** Push the repo and configure `npx tsx server/index.ts` as the start command
+- **ECS / Fargate:** Containerize with a Dockerfile
+
+Configure the frontend to point to your API URL by setting `VITE_API_URL` in `.env` before building, or configure CloudFront to proxy `/api/*` paths to your API server's origin.
+
+---
+
+### Environment Variables
+
+| Variable | Required | Description |
+|:---------|:---------|:------------|
+| `VITE_PEXELS_API_KEY` | No | Pexels API key for golf course images (falls back to defaults) |
+| `PORT` | No | API server port (default: `3001`) |
+
+### Database
+
+The SQLite database file (`wordle-links.db`) is created automatically on first server start in the project root. To back it up:
+
+```bash
+cp wordle-links.db wordle-links.db.backup
+```
+
+To reset the database, delete the file and restart the server — all tables will be recreated (empty).
 
 ---
 
@@ -390,11 +369,12 @@ npm run build
 
 | Issue | Solution |
 |:------|:---------|
-| S3 403 Forbidden | Check the bucket policy allows `s3:GetObject` and public access is unblocked |
-| SPA routes return 404 | S3: Set error document to `index.html`. CloudFront: Add custom error responses. Nginx: Check the `try_files` directive |
+| API returns "Network error" | Ensure the Express server is running (`npm run dev:server`) |
+| SPA routes return 404 | Nginx: check `try_files` directive. S3: set error document to `index.html` |
 | CloudFront serves stale content | Create an invalidation: `aws cloudfront create-invalidation --distribution-id ID --paths "/*"` |
-| 502 Bad Gateway (Nginx) | Run `sudo nginx -t` and check `/var/log/nginx/error.log` |
-| Permission denied (Nginx) | Run `sudo chmod -R 755 ~/wordle-links/dist` |
+| 502 Bad Gateway (Nginx) | Check `sudo systemctl status wordle-links-api` and `sudo nginx -t` |
+| Database locked errors | Ensure only one server process is running. SQLite uses WAL mode for concurrent reads |
+| Wordle word fetch fails | Check browser console for `[Wordle]` logs. The Vite proxy adds required headers for NYT API |
 | Build fails | Verify Node.js >= 18 with `node -v` |
 
 ## Game Rules

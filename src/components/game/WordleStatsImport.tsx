@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { WordleImportedStats } from '../../types';
-import { getWordleImportedStats, saveWordleImportedStats, clearWordleImportedStats } from '../../utils/storage';
+import { apiGetWordleStats, apiSaveWordleStats, apiClearWordleStats } from '../../utils/api';
 
 interface WordleStatsImportProps {
   userId: string;
@@ -8,27 +8,47 @@ interface WordleStatsImportProps {
 }
 
 export default function WordleStatsImport({ userId, onStatsUpdated }: WordleStatsImportProps) {
-  const existing = getWordleImportedStats(userId);
+  const [existing, setExisting] = useState<WordleImportedStats | null>(null);
+  const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<'view' | 'manual' | 'json'>('view');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
   // Manual entry fields
-  const [gamesPlayed, setGamesPlayed] = useState(existing?.gamesPlayed?.toString() || '');
-  const [gamesWon, setGamesWon] = useState(existing?.gamesWon?.toString() || '');
-  const [currentStreak, setCurrentStreak] = useState(existing?.currentStreak?.toString() || '');
-  const [maxStreak, setMaxStreak] = useState(existing?.maxStreak?.toString() || '');
-  const [dist1, setDist1] = useState(existing?.guessDistribution?.['1']?.toString() || '0');
-  const [dist2, setDist2] = useState(existing?.guessDistribution?.['2']?.toString() || '0');
-  const [dist3, setDist3] = useState(existing?.guessDistribution?.['3']?.toString() || '0');
-  const [dist4, setDist4] = useState(existing?.guessDistribution?.['4']?.toString() || '0');
-  const [dist5, setDist5] = useState(existing?.guessDistribution?.['5']?.toString() || '0');
-  const [dist6, setDist6] = useState(existing?.guessDistribution?.['6']?.toString() || '0');
+  const [gamesPlayed, setGamesPlayed] = useState('');
+  const [gamesWon, setGamesWon] = useState('');
+  const [currentStreak, setCurrentStreak] = useState('');
+  const [maxStreak, setMaxStreak] = useState('');
+  const [dist1, setDist1] = useState('0');
+  const [dist2, setDist2] = useState('0');
+  const [dist3, setDist3] = useState('0');
+  const [dist4, setDist4] = useState('0');
+  const [dist5, setDist5] = useState('0');
+  const [dist6, setDist6] = useState('0');
 
   // JSON paste field
   const [jsonInput, setJsonInput] = useState('');
 
-  const handleManualSave = () => {
+  useEffect(() => {
+    apiGetWordleStats(userId).then(stats => {
+      setExisting(stats);
+      if (stats) {
+        setGamesPlayed(stats.gamesPlayed?.toString() || '');
+        setGamesWon(stats.gamesWon?.toString() || '');
+        setCurrentStreak(stats.currentStreak?.toString() || '');
+        setMaxStreak(stats.maxStreak?.toString() || '');
+        setDist1(stats.guessDistribution?.['1']?.toString() || '0');
+        setDist2(stats.guessDistribution?.['2']?.toString() || '0');
+        setDist3(stats.guessDistribution?.['3']?.toString() || '0');
+        setDist4(stats.guessDistribution?.['4']?.toString() || '0');
+        setDist5(stats.guessDistribution?.['5']?.toString() || '0');
+        setDist6(stats.guessDistribution?.['6']?.toString() || '0');
+      }
+      setLoading(false);
+    });
+  }, [userId]);
+
+  const handleManualSave = async () => {
     setError('');
     const played = parseInt(gamesPlayed);
     const won = parseInt(gamesWon);
@@ -62,19 +82,19 @@ export default function WordleStatsImport({ userId, onStatsUpdated }: WordleStat
       source: 'manual',
     };
 
-    saveWordleImportedStats(userId, stats);
+    await apiSaveWordleStats(userId, stats);
+    setExisting(stats);
     setSuccess('Wordle stats imported successfully!');
     setMode('view');
     onStatsUpdated();
     setTimeout(() => setSuccess(''), 3000);
   };
 
-  const handleJsonImport = () => {
+  const handleJsonImport = async () => {
     setError('');
     try {
       const data = JSON.parse(jsonInput);
 
-      // Support NYT Wordle statistics format
       const stats: WordleImportedStats = {
         gamesPlayed: data.gamesPlayed ?? 0,
         gamesWon: data.gamesWon ?? 0,
@@ -90,7 +110,8 @@ export default function WordleStatsImport({ userId, onStatsUpdated }: WordleStat
         return;
       }
 
-      saveWordleImportedStats(userId, stats);
+      await apiSaveWordleStats(userId, stats);
+      setExisting(stats);
       setSuccess('Wordle stats imported from JSON successfully!');
       setJsonInput('');
       setMode('view');
@@ -101,8 +122,9 @@ export default function WordleStatsImport({ userId, onStatsUpdated }: WordleStat
     }
   };
 
-  const handleClear = () => {
-    clearWordleImportedStats(userId);
+  const handleClear = async () => {
+    await apiClearWordleStats(userId);
+    setExisting(null);
     setGamesPlayed('');
     setGamesWon('');
     setCurrentStreak('');
@@ -117,6 +139,14 @@ export default function WordleStatsImport({ userId, onStatsUpdated }: WordleStat
     onStatsUpdated();
     setTimeout(() => setSuccess(''), 3000);
   };
+
+  if (loading) {
+    return (
+      <div className="card game-card">
+        <div className="card-body text-center text-muted">Loading stats...</div>
+      </div>
+    );
+  }
 
   const winPct = existing && existing.gamesPlayed > 0
     ? Math.round((existing.gamesWon / existing.gamesPlayed) * 100)

@@ -1,23 +1,63 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
-import { HolePar, RoundConfig } from '../types';
+import { HolePar, RoundConfig, RoundResult } from '../types';
 import GolfScorecard from '../components/game/GolfScorecard';
 import Avatar from '../components/common/Avatar';
-import { getUserById } from '../utils/storage';
 import { getDisplayName, getScoreRelativeToPar, getScoreName } from '../utils/gameLogic';
 
 export default function GameResultsPage() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, allUsers } = useAuth();
   const { getGame, getUserResult, isRoundCompleteForAllPlayers, startNewRound } = useGame();
 
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [showNewRound, setShowNewRound] = useState(false);
+  const [allComplete, setAllComplete] = useState(false);
+  const [playerResults, setPlayerResults] = useState<{
+    userId: string;
+    name: string;
+    avatar: { category: 'golfball' | 'penguin'; variant: string };
+    result: RoundResult | null;
+    isComplete: boolean;
+  }[]>([]);
 
   const game = gameId ? getGame(gameId) : undefined;
+
+  const roundNumber = selectedRound || (game?.currentRound ?? 1);
+  const round = game?.rounds.find(r => r.roundNumber === roundNumber);
+  const isCreator = game?.creatorId === user?.id;
+
+  // Load results for all players
+  useEffect(() => {
+    if (!game || !gameId) return;
+
+    const loadResults = async () => {
+      const results = await Promise.all(
+        game.playerIds.map(async pid => {
+          const playerUser = allUsers.find(u => u.id === pid);
+          const result = await getUserResult(gameId, roundNumber, pid);
+          return {
+            userId: pid,
+            name: playerUser ? getDisplayName(playerUser.firstName, playerUser.lastName, playerUser.nickname) : 'Unknown',
+            avatar: playerUser?.avatar || { category: 'golfball' as const, variant: 'cowboy' },
+            result,
+            isComplete: result?.completedAt != null,
+          };
+        })
+      );
+      setPlayerResults(results);
+    };
+    loadResults();
+  }, [game, gameId, roundNumber, getUserResult, allUsers]);
+
+  // Check if round complete
+  useEffect(() => {
+    if (!gameId) return;
+    isRoundCompleteForAllPlayers(gameId, roundNumber).then(setAllComplete);
+  }, [gameId, roundNumber, isRoundCompleteForAllPlayers, playerResults]);
 
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
@@ -32,24 +72,6 @@ export default function GameResultsPage() {
     );
   }
 
-  const roundNumber = selectedRound || game.currentRound;
-  const round = game.rounds.find(r => r.roundNumber === roundNumber);
-  const allComplete = isRoundCompleteForAllPlayers(gameId!, roundNumber);
-  const isCreator = game.creatorId === user.id;
-
-  // Get all player results for this round
-  const playerResults = game.playerIds.map(pid => {
-    const playerUser = getUserById(pid);
-    const result = getUserResult(gameId!, roundNumber, pid);
-    return {
-      userId: pid,
-      name: playerUser ? getDisplayName(playerUser.firstName, playerUser.lastName, playerUser.nickname) : 'Unknown',
-      avatar: playerUser?.avatar || { category: 'golfball' as const, variant: 'cowboy' },
-      result,
-      isComplete: result?.completedAt != null,
-    };
-  });
-
   // Sort by total score (lowest first)
   const sortedResults = [...playerResults].sort((a, b) => {
     if (!a.result && !b.result) return 0;
@@ -58,7 +80,6 @@ export default function GameResultsPage() {
     return a.result.totalScore - b.result.totalScore;
   });
 
-  // Calculate total par
   const totalPar = round ? round.holes.reduce((s, h) => s + h.par, 0) : 72;
 
   const handleStartNewRound = () => {

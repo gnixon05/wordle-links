@@ -291,50 +291,74 @@ export default function GamePlayPage() {
   );
 
   return (
-    <div className="container py-3">
-      {/* Game Header */}
-      <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-        <div>
-          <h4 className="mb-0 fw-bold" style={{ color: 'var(--wl-green-dark)' }}>{game.name}</h4>
-          <small className="text-muted">Round {roundNumber}</small>
+    <div className="gameplay-page">
+      {/* Mobile Header - compact, shown only on small screens */}
+      <div className="gameplay-header-mobile">
+        <Link to="/dashboard" className="gameplay-back-btn" aria-label="Back to dashboard">&#8249;</Link>
+        <div className="gameplay-header-center">
+          <span className="gameplay-title">{game.name}</span>
+          <span className="gameplay-subtitle">
+            Hole {currentHole} &middot; Par {par}
+          </span>
         </div>
-        <div className="d-flex gap-2">
+        <div className="gameplay-header-actions">
           {allComplete && (
             <Link to={`/game/${gameId}/results`} className="btn btn-outline-success btn-sm">
-              View Results
+              Results
             </Link>
           )}
-          <Link to="/dashboard" className="btn btn-outline-secondary btn-sm">Dashboard</Link>
         </div>
       </div>
 
-      {/* Hole Navigator */}
-      <div className="mb-3">
-        <HoleNavigator
-          holes={round.holes}
-          currentHole={currentHole}
-          completedHoles={completedHoles}
-          onSelectHole={setCurrentHole}
-          startDate={startDate}
-        />
+      {/* Desktop Header - full version for larger screens */}
+      <div className="gameplay-header-desktop container py-3">
+        <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+          <div>
+            <h4 className="mb-0 fw-bold" style={{ color: 'var(--wl-green-dark)' }}>{game.name}</h4>
+            <small className="text-muted">Round {roundNumber}</small>
+          </div>
+          <div className="d-flex gap-2">
+            {allComplete && (
+              <Link to={`/game/${gameId}/results`} className="btn btn-outline-success btn-sm">
+                View Results
+              </Link>
+            )}
+            <Link to="/dashboard" className="btn btn-outline-secondary btn-sm">Dashboard</Link>
+          </div>
+        </div>
+
+        {/* Hole Navigator - desktop only */}
+        <div className="mb-3">
+          <HoleNavigator
+            holes={round.holes}
+            currentHole={currentHole}
+            completedHoles={completedHoles}
+            onSelectHole={setCurrentHole}
+            startDate={startDate}
+          />
+        </div>
       </div>
 
       {/* Locked Hole Notice */}
       {isHoleLocked && (
-        <div className="alert alert-warning text-center">
-          <strong>Hole {currentHole} is locked.</strong>
-          <br />
-          This hole unlocks on {formatHoleDate(startDate, currentHole)}.
-          Each hole becomes available one day at a time starting at 12:00 AM.
+        <div className="container">
+          <div className="alert alert-warning text-center">
+            <strong>Hole {currentHole} is locked.</strong>
+            <br />
+            This hole unlocks on {formatHoleDate(startDate, currentHole)}.
+            Each hole becomes available one day at a time starting at 12:00 AM.
+          </div>
         </div>
       )}
 
       {/* Past Hole Notice */}
       {isHolePast && (
-        <div className="alert alert-secondary text-center">
-          <strong>Hole {currentHole} has expired.</strong>
-          <br />
-          This hole was available on {formatHoleDate(startDate, currentHole)} and can no longer be played.
+        <div className="container">
+          <div className="alert alert-secondary text-center">
+            <strong>Hole {currentHole} has expired.</strong>
+            <br />
+            This hole was available on {formatHoleDate(startDate, currentHole)} and can no longer be played.
+          </div>
         </div>
       )}
 
@@ -348,23 +372,56 @@ export default function GamePlayPage() {
         </div>
       )}
 
-      {/* Current Hole Info */}
+      {/* Mobile Hole Switcher - prev/next arrows */}
       {!isHoleLocked && !isHolePast && (!isClassicMode || targetWord) && (
-        <>
-          <div className="text-center mb-2">
-            <h5 className="mb-1">
-              Hole {currentHole}
-              <span className="badge bg-secondary ms-2">Par {par}</span>
-              <small className="text-muted ms-2">
-                ({wordLength} letters, {maxGuesses} guesses)
+        <div className="gameplay-hole-switcher">
+          <button
+            className="gameplay-hole-arrow"
+            onClick={() => currentHole > 1 && setCurrentHole(currentHole - 1)}
+            disabled={currentHole <= 1}
+            aria-label="Previous hole"
+          >
+            &#8249;
+          </button>
+          <span className="gameplay-hole-label">
+            Hole {currentHole} of {round.holes.length}
+          </span>
+          <button
+            className="gameplay-hole-arrow"
+            onClick={() => currentHole < round.holes.length && setCurrentHole(currentHole + 1)}
+            disabled={currentHole >= round.holes.length}
+            aria-label="Next hole"
+          >
+            &#8250;
+          </button>
+        </div>
+      )}
+
+      {/* Current Hole Info & Game Area */}
+      {!isHoleLocked && !isHolePast && (!isClassicMode || targetWord) && (
+        <div className="gameplay-area">
+          {/* Hole info - desktop shows full, mobile shows minimal */}
+          <div className="gameplay-hole-info text-center">
+            <div className="gameplay-hole-info-desktop">
+              <h5 className="mb-1">
+                Hole {currentHole}
+                <span className="badge bg-secondary ms-2">Par {par}</span>
+                <small className="text-muted ms-2">
+                  ({wordLength} letters, {maxGuesses} guesses)
+                </small>
+              </h5>
+            </div>
+            <div className="gameplay-hole-info-mobile">
+              <small className="text-muted">
+                {wordLength} letters &middot; {maxGuesses} guesses
               </small>
-            </h5>
+            </div>
             {isClassicMode && !currentHoleResult && (
-              <small className="text-muted">Classic Wordle</small>
+              <small className="text-muted d-block">Classic Wordle</small>
             )}
             {hasStartWord && !currentHoleResult && (
-              <small className="text-info">
-                Start word: <strong>{startWord}</strong> (auto-played as your first guess)
+              <small className="text-info d-block">
+                Start word: <strong>{startWord}</strong>
               </small>
             )}
           </div>
@@ -379,12 +436,14 @@ export default function GamePlayPage() {
           )}
 
           {/* Wordle Board */}
-          <WordleBoard
-            guesses={guesses}
-            currentGuess={currentGuess}
-            maxGuesses={maxGuesses}
-            wordLength={wordLength}
-          />
+          <div className="gameplay-board">
+            <WordleBoard
+              guesses={guesses}
+              currentGuess={currentGuess}
+              maxGuesses={maxGuesses}
+              wordLength={wordLength}
+            />
+          </div>
 
           {/* Result for this hole */}
           {gameOver && (
@@ -414,34 +473,38 @@ export default function GamePlayPage() {
 
           {/* Keyboard */}
           {!currentHoleResult && (
-            <Keyboard
-              keys={keys}
-              onKeyPress={handleKeyPress}
-              onEnter={handleEnter}
-              onBackspace={handleBackspace}
-              disabled={gameOver}
-            />
-          )}
-        </>
-      )}
-
-      {/* Round Complete Notice */}
-      {userRoundComplete && (
-        <div className="alert alert-success mt-3 text-center">
-          <strong>Round Complete!</strong>
-          {allComplete ? (
-            <span> All players have finished.{' '}
-              <Link to={`/game/${gameId}/results`} className="alert-link">View Results</Link>
-            </span>
-          ) : (
-            <span> Waiting for other players to finish...</span>
+            <div className="gameplay-keyboard">
+              <Keyboard
+                keys={keys}
+                onKeyPress={handleKeyPress}
+                onEnter={handleEnter}
+                onBackspace={handleBackspace}
+                disabled={gameOver}
+              />
+            </div>
           )}
         </div>
       )}
 
-      {/* Mini Scorecard */}
+      {/* Round Complete Notice */}
+      {userRoundComplete && (
+        <div className="container">
+          <div className="alert alert-success mt-3 text-center">
+            <strong>Round Complete!</strong>
+            {allComplete ? (
+              <span> All players have finished.{' '}
+                <Link to={`/game/${gameId}/results`} className="alert-link">View Results</Link>
+              </span>
+            ) : (
+              <span> Waiting for other players to finish...</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Mini Scorecard - desktop only */}
       {completedHoles.length > 0 && (
-        <div className="mt-4">
+        <div className="gameplay-scorecard container mt-4">
           <h6 className="text-muted mb-2">Your Scorecard</h6>
           <GolfScorecard
             holes={round.holes}

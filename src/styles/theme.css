@@ -201,6 +201,11 @@
   border-color: #5a3030;
 }
 
+[data-theme="dark"] .gameplay-hole-arrow {
+  color: var(--wl-green-light);
+  border-color: var(--wl-green-light);
+}
+
 [data-theme="dark"] .card-header {
   border-bottom-color: var(--wl-input-border);
 }
@@ -784,7 +789,285 @@ body {
   padding: 2rem 0;
 }
 
-/* Responsive adjustments */
+/* ========================================
+   Gameplay Page - Mobile-First Layout
+   ======================================== */
+
+/* Mobile header - hidden on desktop */
+.gameplay-header-mobile {
+  display: none;
+}
+
+/* Desktop header - shown by default */
+.gameplay-header-desktop {
+  display: block;
+}
+
+/* Hole info variants */
+.gameplay-hole-info-desktop {
+  display: block;
+}
+.gameplay-hole-info-mobile {
+  display: none;
+}
+
+/* Desktop: scorecard visible */
+.gameplay-scorecard {
+  display: block;
+}
+
+/* Mobile hole switcher - hidden on desktop */
+.gameplay-hole-switcher {
+  display: none;
+}
+
+/* Gameplay area - flex column to distribute space */
+.gameplay-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Board wrapper */
+.gameplay-board {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/* Keyboard wrapper */
+.gameplay-keyboard {
+  width: 100%;
+}
+
+/* ========================================
+   Mobile: 768px and below
+   ======================================== */
+@media (max-width: 768px) {
+  /* Hide navbar and footer on gameplay page for mobile */
+  .layout-gameplay > nav,
+  .layout-gameplay > footer {
+    display: none !important;
+  }
+
+  /* Show mobile header, hide desktop header */
+  .gameplay-header-mobile {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: linear-gradient(135deg, var(--wl-green-dark), var(--wl-green-medium));
+    color: white;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .gameplay-header-desktop {
+    display: none;
+  }
+
+  .gameplay-back-btn {
+    color: white;
+    text-decoration: none;
+    font-size: 1.8rem;
+    line-height: 1;
+    padding: 0 8px;
+    font-weight: 300;
+  }
+
+  .gameplay-header-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+  }
+
+  .gameplay-title {
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: 0.5px;
+  }
+
+  .gameplay-subtitle {
+    font-size: 0.75rem;
+    opacity: 0.85;
+  }
+
+  .gameplay-header-actions {
+    min-width: 40px;
+    text-align: right;
+  }
+
+  /* Hole info: hide desktop, show mobile */
+  .gameplay-hole-info-desktop {
+    display: none;
+  }
+  .gameplay-hole-info-mobile {
+    display: block;
+    padding: 2px 0;
+  }
+
+  /* Mobile hole switcher */
+  .gameplay-hole-switcher {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 4px 0;
+  }
+
+  .gameplay-hole-arrow {
+    background: none;
+    border: 1px solid var(--wl-green-medium);
+    color: var(--wl-green-dark);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    font-size: 1.2rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .gameplay-hole-arrow:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .gameplay-hole-label {
+    font-size: 0.8rem;
+    color: var(--wl-muted-text);
+    font-weight: 600;
+  }
+
+  /* Hide scorecard on mobile */
+  .gameplay-scorecard {
+    display: none;
+  }
+
+  /* Layout: on gameplay, main fills the screen */
+  .layout-gameplay {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .layout-gameplay > main {
+    overflow: hidden;
+  }
+
+  /* Gameplay area fills the viewport below the header */
+  .gameplay-area {
+    height: calc(100vh - 52px);
+    height: calc(100dvh - 52px);
+    justify-content: space-between;
+    padding: 4px 0;
+    overflow: hidden;
+  }
+
+  /* Board: use dynamic tile sizes based on viewport width */
+  .gameplay-board .wordle-board {
+    gap: 4px;
+    margin: 0 auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .gameplay-board .wordle-row {
+    gap: 4px;
+    justify-content: center;
+  }
+
+  /* Dynamic tile sizing: fill width minus small padding.
+     For 5 tiles: (100vw - 32px padding - 16px gaps) / 5 = ~calc((100vw - 48px) / 5)
+     Cap at 62px so it doesn't get too big on tablets */
+  .gameplay-board .wordle-tile {
+    width: clamp(44px, calc((100vw - 48px) / 5), 62px);
+    height: clamp(44px, calc((100vw - 48px) / 5), 62px);
+    font-size: clamp(1.4rem, 5vw, 2rem);
+  }
+
+  /* Keyboard: full width, edge to edge with safe-area for phones with gesture bars */
+  .gameplay-keyboard {
+    padding: 0 4px 8px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    width: 100%;
+    flex-shrink: 0;
+  }
+
+  .gameplay-keyboard .keyboard {
+    gap: 5px;
+    margin-top: 0;
+    width: 100%;
+  }
+
+  .gameplay-keyboard .keyboard-row {
+    gap: 3px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Dynamic key sizing: fill entire width */
+  .gameplay-keyboard .key-btn {
+    flex: 1;
+    min-width: 0;
+    max-width: 44px;
+    height: 50px;
+    font-size: clamp(0.7rem, 2.5vw, 0.85rem);
+    padding: 0 2px;
+    border-radius: 4px;
+  }
+
+  .gameplay-keyboard .key-btn.wide {
+    flex: 1.5;
+    max-width: 66px;
+    font-size: clamp(0.6rem, 2vw, 0.75rem);
+  }
+
+}
+
+/* ========================================
+   Small mobile: 576px and below
+   ======================================== */
+@media (max-width: 576px) {
+  .gameplay-board .wordle-tile {
+    width: clamp(42px, calc((100vw - 40px) / 5), 58px);
+    height: clamp(42px, calc((100vw - 40px) / 5), 58px);
+    font-size: clamp(1.3rem, 5vw, 1.8rem);
+  }
+
+  .gameplay-keyboard .key-btn {
+    height: 48px;
+  }
+}
+
+/* ========================================
+   Extra small: 370px and below
+   ======================================== */
+@media (max-width: 370px) {
+  .gameplay-board .wordle-tile {
+    width: clamp(38px, calc((100vw - 36px) / 5), 50px);
+    height: clamp(38px, calc((100vw - 36px) / 5), 50px);
+    font-size: clamp(1.1rem, 5vw, 1.5rem);
+  }
+
+  .gameplay-keyboard .key-btn {
+    height: 42px;
+    font-size: 0.65rem;
+  }
+
+  .gameplay-keyboard .key-btn.wide {
+    font-size: 0.55rem;
+  }
+}
+
+/* ========================================
+   Non-gameplay responsive adjustments
+   ======================================== */
 @media (max-width: 576px) {
   .wordle-tile {
     width: 48px;

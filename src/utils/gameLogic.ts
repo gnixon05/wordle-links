@@ -216,15 +216,25 @@ export function getTodayDateString(): string {
 
 /**
  * Attempt to fetch the official Wordle word for a given date.
- * Falls back to local word generation if the fetch fails.
+ * Tries the Vite dev proxy first, then falls back to a direct CORS request.
+ * Includes a timeout to avoid hanging forever.
  */
 export async function fetchDailyWordleWord(dateStr: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+
   try {
-    const response = await fetch(`/api/wordle/${dateStr}.json`);
+    // Try the Vite dev proxy path first (works in dev, may 404 in production)
+    const response = await fetch(`/api/wordle/${dateStr}.json`, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!response.ok) return null;
+    // Guard against HTML responses (e.g. SPA fallback returning index.html)
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) return null;
     const data = await response.json();
     return data.solution?.toUpperCase() || null;
   } catch {
+    clearTimeout(timeoutId);
     return null;
   }
 }

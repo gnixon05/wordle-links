@@ -9,11 +9,12 @@ import { getDisplayName } from '../utils/gameLogic';
 
 export default function DashboardPage() {
   const { user, isAuthenticated } = useAuth();
-  const { getUserGames, getPublicGames, getUserInvitations, acceptInvitation, declineInvitation, joinGame } = useGame();
+  const { getUserGames, getPublicGames, getUserInvitations, acceptInvitation, declineInvitation, joinGame, deleteGame } = useGame();
   const navigate = useNavigate();
   const [joinPassword, setJoinPassword] = useState('');
   const [joiningGameId, setJoiningGameId] = useState<string | null>(null);
   const [joinError, setJoinError] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'my' | 'public' | 'invites'>('my');
 
   if (!isAuthenticated || !user) {
@@ -148,9 +149,36 @@ export default function DashboardPage() {
           ) : (
             myGames.map(game =>
               renderGameCard(game, (
-                <Link to={`/game/${game.id}`} className="btn btn-success btn-sm w-100">
-                  Play
-                </Link>
+                <div className="d-flex flex-column gap-2">
+                  <Link to={`/game/${game.id}`} className="btn btn-success btn-sm w-100">
+                    Play
+                  </Link>
+                  {game.creatorId === user.id && (
+                    confirmDeleteId === game.id ? (
+                      <div className="d-flex gap-2">
+                        <button
+                          className="btn btn-danger btn-sm flex-fill"
+                          onClick={() => { deleteGame(game.id); setConfirmDeleteId(null); }}
+                        >
+                          Confirm Delete
+                        </button>
+                        <button
+                          className="btn btn-outline-secondary btn-sm flex-fill"
+                          onClick={() => setConfirmDeleteId(null)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        className="btn btn-outline-danger btn-sm w-100"
+                        onClick={() => setConfirmDeleteId(game.id)}
+                      >
+                        Delete Game
+                      </button>
+                    )
+                  )}
+                </div>
               ))
             )
           )}

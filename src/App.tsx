@@ -12,6 +12,7 @@ import GamePlayPage from './pages/GamePlayPage';
 import GameResultsPage from './pages/GameResultsPage';
 import ProfilePage from './pages/ProfilePage';
 import LeaderboardPage from './pages/LeaderboardPage';
+import DailyLeaderboardPage from './pages/DailyLeaderboardPage';
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
               <Route path="/game/:gameId/results" element={<GameResultsPage />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/leaderboard" element={<LeaderboardPage />} />
+              <Route path="/daily" element={<DailyLeaderboardPage />} />
             </Route>
           </Routes>
         </GameProvider>

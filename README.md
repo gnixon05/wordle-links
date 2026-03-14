@@ -1,10 +1,10 @@
-# Wordle Tour
+# Wordle Links
 
 A golf-themed Wordle game where every guess counts as a stroke. Play 18 holes of word puzzles, compete with friends, and climb the leaderboard.
 
 ## Overview
 
-Wordle Tour combines the word-guessing mechanics of [Wordle](https://www.nytimes.com/games/wordle/index.html) with golf scoring. Each round consists of 18 holes, and each hole presents a word puzzle. Your number of guesses equals your strokes — solve it under par for a birdie or eagle, or take too many for a bogey.
+Wordle Links combines the word-guessing mechanics of [Wordle](https://www.nytimes.com/games/wordle/index.html) with golf scoring. Each round consists of 18 holes, and each hole presents a word puzzle. Your number of guesses equals your strokes — solve it under par for a birdie or eagle, or take too many for a bogey.
 
 ### Key Features
 
@@ -47,7 +47,7 @@ Scoring adjusts based on par: a Par 3 hole has 5 max guesses, Par 5 has 7 max gu
 ## Project Structure
 
 ```
-wordle-tour/
+wordle-links/
 ├── public/                    # Static assets
 ├── src/
 │   ├── assets/               # Images and static resources
@@ -92,8 +92,8 @@ wordle-tour/
 1. **Clone the repository:**
 
    ```bash
-   git clone https://github.com/your-username/wordle-tour.git
-   cd wordle-tour
+   git clone https://github.com/your-username/wordle-links.git
+   cd wordle-links
    ```
 
 2. **Install dependencies:**
@@ -143,7 +143,7 @@ This outputs optimized static files to the `dist/` directory.
 
 ## AWS Deployment
 
-Wordle Tour is a static site — the production build outputs plain HTML, CSS, and JS to the `dist/` directory. This guide covers two AWS deployment options:
+Wordle Links is a static site — the production build outputs plain HTML, CSS, and JS to the `dist/` directory. This guide covers two AWS deployment options:
 
 - **[Option A: S3 + CloudFront](#option-a-s3--cloudfront)** — Recommended. Serverless, scalable, low-cost, and zero maintenance.
 - **[Option B: EC2 + Nginx](#option-b-ec2--nginx)** — Traditional server-based approach if you need more control.
@@ -174,7 +174,7 @@ This is the recommended approach for static sites. No servers to manage, automat
 #### 1. Create an S3 Bucket
 
 1. Go to the [S3 Console](https://console.aws.amazon.com/s3/) and click **Create bucket**
-2. **Bucket name:** `wordle-tour` (must be globally unique — adjust as needed)
+2. **Bucket name:** `wordle-links` (must be globally unique — adjust as needed)
 3. **Region:** Choose the region closest to your users
 4. Uncheck **Block all public access** (required for static website hosting)
 5. Acknowledge the public access warning and create the bucket
@@ -201,13 +201,13 @@ Go to **Permissions > Bucket policy** and add:
       "Effect": "Allow",
       "Principal": "*",
       "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::wordle-tour/*"
+      "Resource": "arn:aws:s3:::wordle-links/*"
     }
   ]
 }
 ```
 
-Replace `wordle-tour` with your actual bucket name.
+Replace `wordle-links` with your actual bucket name.
 
 #### 4. Upload the Build
 
@@ -215,15 +215,15 @@ Using the [AWS CLI](https://aws.amazon.com/cli/):
 
 ```bash
 # Upload all files
-aws s3 sync dist/ s3://wordle-tour --delete
+aws s3 sync dist/ s3://wordle-links --delete
 
 # Set cache headers for hashed assets (long-lived cache)
-aws s3 cp s3://wordle-tour/assets/ s3://wordle-tour/assets/ \
+aws s3 cp s3://wordle-links/assets/ s3://wordle-links/assets/ \
   --recursive --metadata-directive REPLACE \
   --cache-control "public, max-age=31536000, immutable"
 
 # Set short cache for index.html (so deploys take effect quickly)
-aws s3 cp s3://wordle-tour/index.html s3://wordle-tour/index.html \
+aws s3 cp s3://wordle-links/index.html s3://wordle-links/index.html \
   --metadata-directive REPLACE \
   --cache-control "public, max-age=60"
 ```
@@ -259,7 +259,7 @@ Your site is now available at `https://your-distribution-id.cloudfront.net`.
 
 ```bash
 npm run build
-aws s3 sync dist/ s3://wordle-tour --delete
+aws s3 sync dist/ s3://wordle-links --delete
 aws cloudfront create-invalidation --distribution-id YOUR_DIST_ID --paths "/*"
 ```
 
@@ -273,7 +273,7 @@ Use this approach if you prefer managing your own server or need server-side log
 
 1. Go to the [EC2 Console](https://console.aws.amazon.com/ec2/) and click **Launch Instance**
 2. Configure:
-   - **Name:** `wordle-tour`
+   - **Name:** `wordle-links`
    - **AMI:** Amazon Linux 2023 or Ubuntu 22.04 LTS
    - **Instance type:** `t2.micro` (free tier eligible)
    - **Key pair:** Create or select an existing key pair
@@ -306,22 +306,22 @@ sudo apt install -y nodejs nginx git
 
 ```bash
 cd ~
-git clone https://github.com/your-username/wordle-tour.git
-cd wordle-tour
+git clone https://github.com/your-username/wordle-links.git
+cd wordle-links
 npm install
 npm run build
 ```
 
 #### 4. Configure Nginx
 
-Create `/etc/nginx/conf.d/wordle-tour.conf`:
+Create `/etc/nginx/conf.d/wordle-links.conf`:
 
 ```nginx
 server {
     listen 80;
     server_name your-domain.com;  # or your EC2 public IP
 
-    root /home/ec2-user/wordle-tour/dist;  # adjust for Ubuntu: /home/ubuntu/...
+    root /home/ec2-user/wordle-links/dist;  # adjust for Ubuntu: /home/ubuntu/...
     index index.html;
 
     gzip on;
@@ -354,7 +354,7 @@ sudo systemctl restart nginx
 #### 5. Set File Permissions
 
 ```bash
-sudo chmod -R 755 ~/wordle-tour/dist
+sudo chmod -R 755 ~/wordle-links/dist
 ```
 
 #### 6. Add HTTPS with Let's Encrypt (Optional)
@@ -378,7 +378,7 @@ sudo certbot renew --dry-run
 #### Redeploying (EC2)
 
 ```bash
-cd ~/wordle-tour
+cd ~/wordle-links
 git pull origin master
 npm install
 npm run build
@@ -394,7 +394,7 @@ npm run build
 | SPA routes return 404 | S3: Set error document to `index.html`. CloudFront: Add custom error responses. Nginx: Check the `try_files` directive |
 | CloudFront serves stale content | Create an invalidation: `aws cloudfront create-invalidation --distribution-id ID --paths "/*"` |
 | 502 Bad Gateway (Nginx) | Run `sudo nginx -t` and check `/var/log/nginx/error.log` |
-| Permission denied (Nginx) | Run `sudo chmod -R 755 ~/wordle-tour/dist` |
+| Permission denied (Nginx) | Run `sudo chmod -R 755 ~/wordle-links/dist` |
 | Build fails | Verify Node.js >= 18 with `node -v` |
 
 ## Game Rules

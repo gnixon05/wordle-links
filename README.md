@@ -141,223 +141,261 @@ npm run build
 
 This outputs optimized static files to the `dist/` directory.
 
-## AWS EC2 Deployment
+## AWS Deployment
 
-This guide covers deploying Wordle Tour to an AWS EC2 instance with Nginx as a reverse proxy and HTTPS via Let's Encrypt.
+Wordle Tour is a static site — the production build outputs plain HTML, CSS, and JS to the `dist/` directory. This guide covers two AWS deployment options:
 
-### 1. Launch an EC2 Instance
+- **[Option A: S3 + CloudFront](#option-a-s3--cloudfront)** — Recommended. Serverless, scalable, low-cost, and zero maintenance.
+- **[Option B: EC2 + Nginx](#option-b-ec2--nginx)** — Traditional server-based approach if you need more control.
 
-1. Go to the [AWS EC2 Console](https://console.aws.amazon.com/ec2/)
-2. Click **Launch Instance**
-3. Configure:
+### Prerequisites (Both Options)
+
+1. Build the app locally:
+
+   ```bash
+   npm install
+   npm run build
+   ```
+
+2. (Optional) Set your Pexels API key in `.env` before building:
+
+   ```bash
+   cp .env.example .env
+   # Edit .env and add VITE_PEXELS_API_KEY=your_key_here
+   npm run build
+   ```
+
+---
+
+### Option A: S3 + CloudFront
+
+This is the recommended approach for static sites. No servers to manage, automatic scaling, and global CDN distribution.
+
+#### 1. Create an S3 Bucket
+
+1. Go to the [S3 Console](https://console.aws.amazon.com/s3/) and click **Create bucket**
+2. **Bucket name:** `wordle-tour` (must be globally unique — adjust as needed)
+3. **Region:** Choose the region closest to your users
+4. Uncheck **Block all public access** (required for static website hosting)
+5. Acknowledge the public access warning and create the bucket
+
+#### 2. Enable Static Website Hosting
+
+1. Open your bucket and go to **Properties**
+2. Scroll to **Static website hosting** and click **Edit**
+3. Enable it with:
+   - **Index document:** `index.html`
+   - **Error document:** `index.html` (required for SPA client-side routing)
+4. Save and note the **bucket website endpoint** URL
+
+#### 3. Set the Bucket Policy
+
+Go to **Permissions > Bucket policy** and add:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadGetObject",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::wordle-tour/*"
+    }
+  ]
+}
+```
+
+Replace `wordle-tour` with your actual bucket name.
+
+#### 4. Upload the Build
+
+Using the [AWS CLI](https://aws.amazon.com/cli/):
+
+```bash
+# Upload all files
+aws s3 sync dist/ s3://wordle-tour --delete
+
+# Set cache headers for hashed assets (long-lived cache)
+aws s3 cp s3://wordle-tour/assets/ s3://wordle-tour/assets/ \
+  --recursive --metadata-directive REPLACE \
+  --cache-control "public, max-age=31536000, immutable"
+
+# Set short cache for index.html (so deploys take effect quickly)
+aws s3 cp s3://wordle-tour/index.html s3://wordle-tour/index.html \
+  --metadata-directive REPLACE \
+  --cache-control "public, max-age=60"
+```
+
+At this point, the site is live at your S3 website endpoint.
+
+#### 5. Add CloudFront (Recommended)
+
+CloudFront adds HTTPS support, global CDN caching, and better performance.
+
+1. Go to the [CloudFront Console](https://console.aws.amazon.com/cloudfront/) and click **Create distribution**
+2. **Origin domain:** Select your S3 bucket's **website endpoint** (use the static website hosting URL, not the bucket itself)
+3. **Viewer protocol policy:** Redirect HTTP to HTTPS
+4. **Default root object:** `index.html`
+5. Under **Error pages**, create a custom error response:
+   - **HTTP error code:** `403`
+   - **Response page path:** `/index.html`
+   - **HTTP response code:** `200`
+   - Repeat for error code `404`
+6. (Optional) Under **Alternate domain names**, add your custom domain and select an ACM certificate
+7. Create the distribution and wait for it to deploy (takes a few minutes)
+
+Your site is now available at `https://your-distribution-id.cloudfront.net`.
+
+#### 6. Set Up a Custom Domain (Optional)
+
+1. Register or transfer your domain in [Route 53](https://console.aws.amazon.com/route53/) (or your DNS provider)
+2. Request a free SSL certificate in [ACM](https://console.aws.amazon.com/acm/) (must be in `us-east-1` for CloudFront)
+3. Add your domain as an alternate domain name in your CloudFront distribution
+4. Create a Route 53 alias record pointing your domain to the CloudFront distribution
+
+#### Redeploying (S3 + CloudFront)
+
+```bash
+npm run build
+aws s3 sync dist/ s3://wordle-tour --delete
+aws cloudfront create-invalidation --distribution-id YOUR_DIST_ID --paths "/*"
+```
+
+---
+
+### Option B: EC2 + Nginx
+
+Use this approach if you prefer managing your own server or need server-side logic in the future.
+
+#### 1. Launch an EC2 Instance
+
+1. Go to the [EC2 Console](https://console.aws.amazon.com/ec2/) and click **Launch Instance**
+2. Configure:
    - **Name:** `wordle-tour`
    - **AMI:** Amazon Linux 2023 or Ubuntu 22.04 LTS
-   - **Instance type:** `t2.micro` (free tier eligible) or `t3.small`
+   - **Instance type:** `t2.micro` (free tier eligible)
    - **Key pair:** Create or select an existing key pair
-   - **Security Group:** Allow inbound traffic on ports:
-     - **22** (SSH)
-     - **80** (HTTP)
-     - **443** (HTTPS)
-4. Launch the instance and note the public IP address
+   - **Security group:** Allow inbound on ports **22** (SSH), **80** (HTTP), **443** (HTTPS)
+3. Launch and note the public IP address
 
-### 2. Connect to Your Instance
+#### 2. Connect and Install Dependencies
 
 ```bash
 ssh -i your-key.pem ec2-user@your-ec2-public-ip
-# or for Ubuntu:
-ssh -i your-key.pem ubuntu@your-ec2-public-ip
+# Ubuntu: ssh -i your-key.pem ubuntu@your-ec2-public-ip
 ```
-
-### 3. Install Dependencies
 
 **Amazon Linux 2023:**
 
 ```bash
-# Update system
 sudo dnf update -y
-
-# Install Node.js 20.x
-sudo dnf install -y nodejs20 npm
-
-# Install Nginx
-sudo dnf install -y nginx
-
-# Install Git
-sudo dnf install -y git
+sudo dnf install -y nodejs20 npm nginx git
 ```
 
 **Ubuntu 22.04:**
 
 ```bash
-# Update system
 sudo apt update && sudo apt upgrade -y
-
-# Install Node.js 20.x
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
-
-# Install Nginx
-sudo apt install -y nginx
-
-# Install Git
-sudo apt install -y git
+sudo apt install -y nodejs nginx git
 ```
 
-### 4. Clone and Build the Application
+#### 3. Clone and Build
 
 ```bash
-# Clone the repository
-cd /home/ec2-user   # or /home/ubuntu on Ubuntu
+cd ~
 git clone https://github.com/your-username/wordle-tour.git
 cd wordle-tour
-
-# Install dependencies
 npm install
-
-# (Optional) Set up Pexels API key
-cp .env.example .env
-nano .env
-# Add your VITE_PEXELS_API_KEY
-
-# Build for production
 npm run build
 ```
 
-### 5. Configure Nginx
+#### 4. Configure Nginx
 
-Create an Nginx configuration file:
-
-```bash
-sudo nano /etc/nginx/conf.d/wordle-tour.conf
-```
-
-Add the following configuration:
+Create `/etc/nginx/conf.d/wordle-tour.conf`:
 
 ```nginx
 server {
     listen 80;
     server_name your-domain.com;  # or your EC2 public IP
 
-    root /home/ec2-user/wordle-tour/dist;
+    root /home/ec2-user/wordle-tour/dist;  # adjust for Ubuntu: /home/ubuntu/...
     index index.html;
 
-    # Gzip compression
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
     gzip_min_length 1000;
 
-    # Cache static assets
     location /assets/ {
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
 
-    # SPA fallback - serve index.html for all routes
     location / {
         try_files $uri $uri/ /index.html;
     }
 
-    # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
 }
 ```
 
-Test and restart Nginx:
-
 ```bash
+# Ubuntu only: remove the default site
+sudo rm -f /etc/nginx/sites-enabled/default
+
 sudo nginx -t
 sudo systemctl enable nginx
 sudo systemctl restart nginx
 ```
 
-If using Ubuntu, remove the default site:
+#### 5. Set File Permissions
 
 ```bash
-sudo rm /etc/nginx/sites-enabled/default
-sudo systemctl restart nginx
+sudo chmod -R 755 ~/wordle-tour/dist
 ```
 
-### 6. Set File Permissions
+#### 6. Add HTTPS with Let's Encrypt (Optional)
+
+Requires a domain name pointed to your EC2 instance.
 
 ```bash
-# Ensure Nginx can read the dist directory
-sudo chmod -R 755 /home/ec2-user/wordle-tour/dist
-sudo chown -R ec2-user:ec2-user /home/ec2-user/wordle-tour
-```
-
-### 7. Set Up HTTPS with Let's Encrypt (Optional but Recommended)
-
-If you have a domain name pointed to your EC2 instance:
-
-**Amazon Linux 2023:**
-
-```bash
+# Amazon Linux 2023
 sudo dnf install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d your-domain.com
-```
 
-**Ubuntu 22.04:**
-
-```bash
+# Ubuntu 22.04
 sudo apt install -y certbot python3-certbot-nginx
+
+# Request certificate
 sudo certbot --nginx -d your-domain.com
-```
 
-Certbot will automatically update your Nginx configuration for HTTPS and set up auto-renewal.
-
-To test auto-renewal:
-
-```bash
+# Verify auto-renewal
 sudo certbot renew --dry-run
 ```
 
-### 8. Set Up Auto-Deploy (Optional)
-
-Create a deployment script:
+#### Redeploying (EC2)
 
 ```bash
-nano /home/ec2-user/deploy.sh
-```
-
-```bash
-#!/bin/bash
-set -e
-
-cd /home/ec2-user/wordle-tour
+cd ~/wordle-tour
 git pull origin master
 npm install
 npm run build
-
-echo "Deployment complete!"
 ```
 
-```bash
-chmod +x /home/ec2-user/deploy.sh
-```
-
-Run it whenever you push updates:
-
-```bash
-./deploy.sh
-```
-
-### 9. Verify Deployment
-
-1. Open your browser and navigate to `http://your-ec2-public-ip` (or your domain)
-2. You should see the Wordle Tour home page
-3. Test the full flow: sign up, create a game, play a few holes
+---
 
 ### Troubleshooting
 
 | Issue | Solution |
 |:------|:---------|
-| 502 Bad Gateway | Check Nginx config with `sudo nginx -t` and logs at `/var/log/nginx/error.log` |
-| Permission denied | Run `sudo chmod -R 755 /home/ec2-user/wordle-tour/dist` |
-| Page not found on refresh | Ensure the `try_files` directive is in your Nginx config |
-| Port 80 blocked | Check EC2 Security Group allows inbound HTTP (port 80) |
-| Build fails | Check Node.js version with `node -v` (needs >= 18) |
+| S3 403 Forbidden | Check the bucket policy allows `s3:GetObject` and public access is unblocked |
+| SPA routes return 404 | S3: Set error document to `index.html`. CloudFront: Add custom error responses. Nginx: Check the `try_files` directive |
+| CloudFront serves stale content | Create an invalidation: `aws cloudfront create-invalidation --distribution-id ID --paths "/*"` |
+| 502 Bad Gateway (Nginx) | Run `sudo nginx -t` and check `/var/log/nginx/error.log` |
+| Permission denied (Nginx) | Run `sudo chmod -R 755 ~/wordle-tour/dist` |
+| Build fails | Verify Node.js >= 18 with `node -v` |
 
 ## Game Rules
 

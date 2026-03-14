@@ -1,23 +1,14 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import { User, AvatarChoice } from '../types';
-import {
-  getUsers,
-  saveUser,
-  getUserByEmail,
-  getUserById,
-  getCurrentUserId,
-  setCurrentUserId,
-  hashPassword,
-  verifyPassword,
-} from '../utils/storage';
+import { apiSignup, apiLogin, apiLogout, apiGetMe, apiUpdateProfile, apiGetUsers } from '../utils/api';
 import { getDisplayName } from '../utils/gameLogic';
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => { success: boolean; error?: string };
-  signup: (data: SignupData) => { success: boolean; error?: string };
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (data: SignupData) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   updateProfile: (updates: Partial<Pick<User, 'firstName' | 'lastName' | 'nickname' | 'avatar' | 'theme'>>) => void;
   displayName: string;
@@ -39,71 +30,70 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const refreshUsers = useCallback(() => {
-    setAllUsers(getUsers());
+  const refreshUsers = useCallback(async () => {
+    try {
+      const users = await apiGetUsers();
+      setAllUsers(users);
+    } catch {
+      // Fall back to empty if server unreachable
+      setAllUsers([]);
+    }
   }, []);
 
+  // Restore session on mount
   useEffect(() => {
-    const savedId = getCurrentUserId();
-    if (savedId) {
-      const savedUser = getUserById(savedId);
-      if (savedUser) {
-        setUser(savedUser);
+    async function restoreSession() {
+      const result = await apiGetMe();
+      if (result.user) {
+        setUser(result.user);
       }
+      setIsLoading(false);
     }
+    restoreSession();
     refreshUsers();
   }, [refreshUsers]);
 
-  const login = useCallback((email: string, password: string) => {
-    const found = getUserByEmail(email);
-    if (!found) {
-      return { success: false, error: 'No account found with that email.' };
+  const login = useCallback(async (email: string, password: string) => {
+    const result = await apiLogin(email, password);
+    if (result.user) {
+      setUser(result.user);
+      refreshUsers();
+      return { success: true };
     }
-    if (!verifyPassword(password, found.passwordHash)) {
-      return { success: false, error: 'Incorrect password.' };
-    }
-    setUser(found);
-    setCurrentUserId(found.id);
-    return { success: true };
-  }, []);
+    return { success: false, error: result.error };
+  }, [refreshUsers]);
 
-  const signup = useCallback((data: SignupData) => {
-    const existing = getUserByEmail(data.email);
-    if (existing) {
-      return { success: false, error: 'An account with that email already exists.' };
-    }
-
-    const newUser: User = {
-      id: uuidv4(),
+  const signup = useCallback(async (data: SignupData) => {
+    const result = await apiSignup({
       firstName: data.firstName,
       lastName: data.lastName,
       email: data.email,
-      passwordHash: hashPassword(data.password),
-      nickname: data.nickname || undefined,
+      password: data.password,
+      nickname: data.nickname,
       avatar: data.avatar,
-      theme: 'light',
-      createdAt: new Date().toISOString(),
-    };
-
-    saveUser(newUser);
-    setUser(newUser);
-    setCurrentUserId(newUser.id);
-    refreshUsers();
-    return { success: true };
+    });
+    if (result.user) {
+      setUser(result.user);
+      refreshUsers();
+      return { success: true };
+    }
+    return { success: false, error: result.error };
   }, [refreshUsers]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    await apiLogout();
     setUser(null);
-    setCurrentUserId(null);
   }, []);
 
-  const updateProfile = useCallback((updates: Partial<Pick<User, 'firstName' | 'lastName' | 'nickname' | 'avatar' | 'theme'>>) => {
+  const updateProfile = useCallback(async (updates: Partial<Pick<User, 'firstName' | 'lastName' | 'nickname' | 'avatar' | 'theme'>>) => {
     if (!user) return;
-    const updated = { ...user, ...updates };
-    saveUser(updated);
-    setUser(updated);
-    refreshUsers();
+    const result = await apiUpdateProfile(user.id, updates);
+    if (result.user) {
+      setUser(result.user);
+      refreshUsers();
+    }
   }, [user, refreshUsers]);
 
   const displayName = user
@@ -114,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{
       user,
       isAuthenticated: !!user,
+      isLoading,
       login,
       signup,
       logout,

@@ -10,6 +10,20 @@ export default defineConfig({
         target: 'https://www.nytimes.com',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/wordle/, '/svc/wordle/v2'),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json',
+          'Referer': 'https://www.nytimes.com/games/wordle/index.html',
+        },
+        secure: true,
+      },
+      '/api/auth': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/api/users': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
       },
     },
   },

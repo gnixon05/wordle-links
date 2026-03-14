@@ -21,7 +21,9 @@ export default function SignupPage() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const handleSubmit = (e: FormEvent) => {
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -40,7 +42,8 @@ export default function SignupPage() {
       return;
     }
 
-    const result = signup({
+    setLoading(true);
+    const result = await signup({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       email: email.trim(),
@@ -48,6 +51,7 @@ export default function SignupPage() {
       nickname: nickname.trim() || undefined,
       avatar,
     });
+    setLoading(false);
 
     if (result.success) {
       navigate('/dashboard');
@@ -152,8 +156,8 @@ export default function SignupPage() {
                   <AvatarPicker selected={avatar} onSelect={setAvatar} />
                 </div>
 
-                <button type="submit" className="btn btn-success btn-lg w-100">
-                  Create Account
+                <button type="submit" className="btn btn-success btn-lg w-100" disabled={loading}>
+                  {loading ? 'Creating Account...' : 'Create Account'}
                 </button>
               </form>
 

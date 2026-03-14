@@ -1,69 +1,76 @@
-import { useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LeaderboardEntry, HolePar } from '../types';
 import Avatar from '../components/common/Avatar';
-import { getUsers, getGameById } from '../utils/storage';
 import { getDisplayName } from '../utils/gameLogic';
-import { getRoundResults } from '../utils/storage';
+import { apiGetAllResults, apiGetGames } from '../utils/api';
 
 export default function LeaderboardPage() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, allUsers } = useAuth();
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
 
-  const leaderboard = useMemo((): LeaderboardEntry[] => {
-    if (!isAuthenticated) return [];
+  useEffect(() => {
+    if (!isAuthenticated) return;
 
-    const users = getUsers();
-    const allResults = getRoundResults();
+    const loadLeaderboard = async () => {
+      const [allResults, allGames] = await Promise.all([
+        apiGetAllResults(),
+        apiGetGames(),
+      ]);
 
-    return users.map(u => {
-      const userResults = allResults.filter(r => r.userId === u.id);
-      const completedResults = userResults.filter(r => r.completedAt);
+      const entries = allUsers.map(u => {
+        const userResults = allResults.filter(r => r.userId === u.id);
+        const completedResults = userResults.filter(r => r.completedAt);
 
-      let totalScore = 0;
-      let holesInOne = 0;
-      let eagles = 0;
-      let birdies = 0;
-      let bestRound = Infinity;
+        let totalScore = 0;
+        let holesInOne = 0;
+        let eagles = 0;
+        let birdies = 0;
+        let bestRound = Infinity;
 
-      const gameIds = new Set(completedResults.map(r => r.gameId));
+        const gameIds = new Set(completedResults.map(r => r.gameId));
 
-      completedResults.forEach(r => {
-        totalScore += r.totalScore;
+        completedResults.forEach(r => {
+          totalScore += r.totalScore;
+          if (r.totalScore < bestRound) bestRound = r.totalScore;
 
-        if (r.totalScore < bestRound) bestRound = r.totalScore;
+          const game = allGames.find(g => g.id === r.gameId);
+          const round = game?.rounds.find(rd => rd.roundNumber === r.roundNumber);
 
-        const game = getGameById(r.gameId);
-        const round = game?.rounds.find(rd => rd.roundNumber === r.roundNumber);
-
-        r.holes.forEach(h => {
-          const holePar: HolePar = round?.holes.find(rh => rh.holeNumber === h.holeNumber)?.par || 4;
-          const diff = h.score - holePar;
-          if (h.score === 1) holesInOne++;
-          if (diff <= -2) eagles++;
-          else if (diff === -1) birdies++;
+          r.holes.forEach(h => {
+            const holePar: HolePar = round?.holes.find(rh => rh.holeNumber === h.holeNumber)?.par || 4;
+            const diff = h.score - holePar;
+            if (h.score === 1) holesInOne++;
+            if (diff <= -2) eagles++;
+            else if (diff === -1) birdies++;
+          });
         });
-      });
 
-      return {
-        userId: u.id,
-        displayName: getDisplayName(u.firstName, u.lastName, u.nickname),
-        avatar: u.avatar,
-        gamesPlayed: gameIds.size,
-        roundsPlayed: completedResults.length,
-        totalScore,
-        averageScore: completedResults.length > 0
-          ? Math.round(totalScore / completedResults.length * 10) / 10
-          : 0,
-        bestRoundScore: bestRound === Infinity ? 0 : bestRound,
-        holesInOne,
-        eagles,
-        birdies,
-      };
-    })
-    .filter(e => e.roundsPlayed > 0)
-    .sort((a, b) => a.averageScore - b.averageScore);
-  }, [isAuthenticated]);
+        return {
+          userId: u.id,
+          displayName: getDisplayName(u.firstName, u.lastName, u.nickname),
+          avatar: u.avatar,
+          gamesPlayed: gameIds.size,
+          roundsPlayed: completedResults.length,
+          totalScore,
+          averageScore: completedResults.length > 0
+            ? Math.round(totalScore / completedResults.length * 10) / 10
+            : 0,
+          bestRoundScore: bestRound === Infinity ? 0 : bestRound,
+          holesInOne,
+          eagles,
+          birdies,
+        };
+      })
+      .filter(e => e.roundsPlayed > 0)
+      .sort((a, b) => a.averageScore - b.averageScore);
+
+      setLeaderboard(entries);
+    };
+
+    loadLeaderboard();
+  }, [isAuthenticated, allUsers]);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

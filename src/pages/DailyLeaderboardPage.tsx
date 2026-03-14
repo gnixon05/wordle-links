@@ -1,10 +1,9 @@
-import { useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
 import { HolePar } from '../types';
 import Avatar from '../components/common/Avatar';
-import { getUserById } from '../utils/storage';
 import {
   getDisplayName,
   getScoreName,
@@ -33,76 +32,79 @@ interface DailyGameEntry {
 }
 
 export default function DailyLeaderboardPage() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, allUsers } = useAuth();
   const { getUserGames, getUserResult } = useGame();
 
   const todayStr = getTodayDateString();
+  const [dailyEntries, setDailyEntries] = useState<DailyGameEntry[]>([]);
 
-  const dailyEntries = useMemo((): DailyGameEntry[] => {
-    if (!isAuthenticated || !user) return [];
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
 
-    const myGames = getUserGames();
-    const entries: DailyGameEntry[] = [];
+    const loadEntries = async () => {
+      const myGames = getUserGames();
+      const entries: DailyGameEntry[] = [];
 
-    for (const game of myGames) {
-      const round = game.rounds.find(r => r.roundNumber === game.currentRound);
-      if (!round) continue;
+      for (const game of myGames) {
+        const round = game.rounds.find(r => r.roundNumber === game.currentRound);
+        if (!round) continue;
 
-      // Find today's hole for this game
-      let todaysHole: number | null = null;
-      for (let i = 1; i <= round.holes.length; i++) {
-        const availability = getHoleAvailability(round.startDate, i);
-        if (availability === 'available') {
-          todaysHole = i;
-          break;
+        let todaysHole: number | null = null;
+        for (let i = 1; i <= round.holes.length; i++) {
+          const availability = getHoleAvailability(round.startDate, i);
+          if (availability === 'available') {
+            todaysHole = i;
+            break;
+          }
         }
+
+        if (todaysHole === null) continue;
+
+        const holeConfig = round.holes.find(h => h.holeNumber === todaysHole);
+        if (!holeConfig) continue;
+
+        const players: DailyPlayerResult[] = await Promise.all(
+          game.playerIds.map(async pid => {
+            const playerUser = allUsers.find(u => u.id === pid);
+            const result = await getUserResult(game.id, game.currentRound, pid);
+            const holeResult = result?.holes.find(h => h.holeNumber === todaysHole);
+
+            return {
+              userId: pid,
+              displayName: playerUser
+                ? getDisplayName(playerUser.firstName, playerUser.lastName, playerUser.nickname)
+                : 'Unknown',
+              avatar: playerUser?.avatar || { category: 'golfball' as const, variant: 'cowboy' },
+              score: holeResult ? holeResult.score : null,
+              solved: holeResult?.solved ?? false,
+              guesses: holeResult?.guesses ?? [],
+              hasPlayed: !!holeResult,
+            };
+          })
+        );
+
+        players.sort((a, b) => {
+          if (a.hasPlayed && !b.hasPlayed) return -1;
+          if (!a.hasPlayed && b.hasPlayed) return 1;
+          if (a.score !== null && b.score !== null) return a.score - b.score;
+          return 0;
+        });
+
+        entries.push({
+          gameId: game.id,
+          gameName: game.name,
+          holeNumber: todaysHole,
+          holePar: holeConfig.par,
+          holeDate: formatHoleDate(round.startDate, todaysHole),
+          players,
+        });
       }
 
-      // Also include past holes from today (in case user wants to see recent)
-      // But primarily show today's hole
-      if (todaysHole === null) continue;
+      setDailyEntries(entries);
+    };
 
-      const holeConfig = round.holes.find(h => h.holeNumber === todaysHole);
-      if (!holeConfig) continue;
-
-      const players: DailyPlayerResult[] = game.playerIds.map(pid => {
-        const playerUser = getUserById(pid);
-        const result = getUserResult(game.id, game.currentRound, pid);
-        const holeResult = result?.holes.find(h => h.holeNumber === todaysHole);
-
-        return {
-          userId: pid,
-          displayName: playerUser
-            ? getDisplayName(playerUser.firstName, playerUser.lastName, playerUser.nickname)
-            : 'Unknown',
-          avatar: playerUser?.avatar || { category: 'golfball' as const, variant: 'cowboy' },
-          score: holeResult ? holeResult.score : null,
-          solved: holeResult?.solved ?? false,
-          guesses: holeResult?.guesses ?? [],
-          hasPlayed: !!holeResult,
-        };
-      });
-
-      // Sort: played first (by score ascending), then not-yet-played
-      players.sort((a, b) => {
-        if (a.hasPlayed && !b.hasPlayed) return -1;
-        if (!a.hasPlayed && b.hasPlayed) return 1;
-        if (a.score !== null && b.score !== null) return a.score - b.score;
-        return 0;
-      });
-
-      entries.push({
-        gameId: game.id,
-        gameName: game.name,
-        holeNumber: todaysHole,
-        holePar: holeConfig.par,
-        holeDate: formatHoleDate(round.startDate, todaysHole),
-        players,
-      });
-    }
-
-    return entries;
-  }, [isAuthenticated, user, getUserGames, getUserResult]);
+    loadEntries();
+  }, [isAuthenticated, user, getUserGames, getUserResult, allUsers]);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

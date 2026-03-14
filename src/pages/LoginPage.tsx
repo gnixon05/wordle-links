@@ -14,11 +14,15 @@ export default function LoginPage() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const handleSubmit = (e: FormEvent) => {
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
 
-    const result = login(email.trim(), password);
+    const result = await login(email.trim(), password);
+    setLoading(false);
     if (result.success) {
       navigate('/dashboard');
     } else {
@@ -63,8 +67,8 @@ export default function LoginPage() {
                   />
                 </div>
 
-                <button type="submit" className="btn btn-success btn-lg w-100">
-                  Log In
+                <button type="submit" className="btn btn-success btn-lg w-100" disabled={loading}>
+                  {loading ? 'Logging in...' : 'Log In'}
                 </button>
               </form>
 

@@ -221,20 +221,36 @@ export function getTodayDateString(): string {
  */
 export async function fetchDailyWordleWord(dateStr: string): Promise<string | null> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
 
   try {
-    // Try the Vite dev proxy path first (works in dev, may 404 in production)
-    const response = await fetch(`/api/wordle/${dateStr}.json`, { signal: controller.signal });
+    const url = `/api/wordle/${dateStr}.json`;
+    console.log(`[Wordle] Fetching word for ${dateStr} from ${url}`);
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { 'Accept': 'application/json' },
+    });
     clearTimeout(timeoutId);
-    if (!response.ok) return null;
+
+    if (!response.ok) {
+      console.warn(`[Wordle] Fetch failed: HTTP ${response.status} ${response.statusText}`);
+      return null;
+    }
+
     // Guard against HTML responses (e.g. SPA fallback returning index.html)
     const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) return null;
+    if (!contentType.includes('application/json')) {
+      console.warn(`[Wordle] Unexpected content-type: ${contentType}`);
+      return null;
+    }
+
     const data = await response.json();
-    return data.solution?.toUpperCase() || null;
-  } catch {
+    const solution = data.solution?.toUpperCase() || null;
+    console.log(`[Wordle] Got solution for ${dateStr}: ${solution ? '***' : 'null'}`);
+    return solution;
+  } catch (err) {
     clearTimeout(timeoutId);
+    console.error(`[Wordle] Fetch error for ${dateStr}:`, err);
     return null;
   }
 }

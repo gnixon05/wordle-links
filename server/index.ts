@@ -1,0 +1,544 @@
+import express from 'express';
+import { v4 as uuidv4 } from 'uuid';
+import bcrypt from 'bcryptjs';
+import db, { initializeDatabase } from './db.js';
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+app.use(express.json({ limit: '5mb' }));
+
+// Initialize database tables
+initializeDatabase();
+console.log('[Server] Database initialized');
+
+// ---------- Helper: session auth middleware ----------
+
+type AuthedRequest = express.Request & { userId: string };
+
+function getSessionUserId(req: express.Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  const sessionId = authHeader.slice(7);
+
+  const session = db.prepare(
+    `SELECT user_id FROM sessions WHERE id = ? AND expires_at > datetime('now')`
+  ).get(sessionId) as { user_id: string } | undefined;
+
+  return session?.user_id ?? null;
+}
+
+function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction): void {
+  const userId = getSessionUserId(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+  (req as AuthedRequest).userId = userId;
+  next();
+}
+
+// ---------- Auth endpoints ----------
+
+app.post('/api/auth/signup', (req, res) => {
+  const { firstName, lastName, email, password, nickname, avatar } = req.body;
+
+  if (!firstName || !lastName || !email || !password) {
+    res.status(400).json({ error: 'First name, last name, email, and password are required.' });
+    return;
+  }
+
+  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  if (existing) {
+    res.status(409).json({ error: 'An account with that email already exists.' });
+    return;
+  }
+
+  const id = uuidv4();
+  const passwordHash = bcrypt.hashSync(password, 10);
+  const avatarCategory = avatar?.category || 'golfball';
+  const avatarVariant = avatar?.variant || 'white';
+
+  db.prepare(
+    `INSERT INTO users (id, first_name, last_name, email, password_hash, nickname, avatar_category, avatar_variant)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, firstName, lastName, email, passwordHash, nickname || null, avatarCategory, avatarVariant);
+
+  const sessionId = uuidv4();
+  const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+  db.prepare('INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)').run(sessionId, id, expiresAt);
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as Record<string, string>;
+
+  res.status(201).json({
+    sessionId,
+    user: formatUser(user),
+  });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    res.status(400).json({ error: 'Email and password are required.' });
+    return;
+  }
+
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as Record<string, string> | undefined;
+  if (!user) {
+    res.status(401).json({ error: 'No account found with that email.' });
+    return;
+  }
+
+  if (!bcrypt.compareSync(password, user.password_hash)) {
+    res.status(401).json({ error: 'Incorrect password.' });
+    return;
+  }
+
+  const sessionId = uuidv4();
+  const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+  db.prepare('INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)').run(sessionId, user.id, expiresAt);
+
+  res.json({
+    sessionId,
+    user: formatUser(user),
+  });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    const sessionId = authHeader.slice(7);
+    db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
+  }
+  res.json({ success: true });
+});
+
+app.get('/api/auth/me', (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as Record<string, string> | undefined;
+  if (!user) {
+    res.status(401).json({ error: 'User not found' });
+    return;
+  }
+  res.json({ user: formatUser(user) });
+});
+
+// ---------- User endpoints ----------
+
+app.get('/api/users', (_req, res) => {
+  const users = db.prepare('SELECT * FROM users').all() as Record<string, string>[];
+  res.json(users.map(formatUser));
+});
+
+app.get('/api/users/:id', (_req, res) => {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(_req.params.id) as Record<string, string> | undefined;
+  if (!user) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+  res.json(formatUser(user));
+});
+
+app.patch('/api/users/:id', requireAuth, (req, res) => {
+  const authedReq = req as AuthedRequest;
+  if (authedReq.userId !== req.params.id) {
+    res.status(403).json({ error: 'Cannot update another user\'s profile' });
+    return;
+  }
+
+  const { firstName, lastName, nickname, avatar, theme } = req.body;
+  const updates: string[] = [];
+  const values: (string | null)[] = [];
+
+  if (firstName !== undefined) { updates.push('first_name = ?'); values.push(firstName); }
+  if (lastName !== undefined) { updates.push('last_name = ?'); values.push(lastName); }
+  if (nickname !== undefined) { updates.push('nickname = ?'); values.push(nickname || null); }
+  if (avatar?.category !== undefined) { updates.push('avatar_category = ?'); values.push(avatar.category); }
+  if (avatar?.variant !== undefined) { updates.push('avatar_variant = ?'); values.push(avatar.variant); }
+  if (theme !== undefined) { updates.push('theme = ?'); values.push(theme); }
+
+  if (updates.length === 0) {
+    res.status(400).json({ error: 'No fields to update' });
+    return;
+  }
+
+  values.push(req.params.id);
+  db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id) as Record<string, string>;
+  res.json(formatUser(user));
+});
+
+// ---------- Game endpoints ----------
+
+app.get('/api/games', (_req, res) => {
+  const games = db.prepare('SELECT * FROM games ORDER BY created_at DESC').all() as Record<string, unknown>[];
+  res.json(games.map(g => formatGame(g)));
+});
+
+app.get('/api/games/:id', (_req, res) => {
+  const game = db.prepare('SELECT * FROM games WHERE id = ?').get(_req.params.id) as Record<string, unknown> | undefined;
+  if (!game) {
+    res.status(404).json({ error: 'Game not found' });
+    return;
+  }
+  res.json(formatGame(game));
+});
+
+app.post('/api/games', requireAuth, (req, res) => {
+  const authedReq = req as AuthedRequest;
+  const { game, words, startWords } = req.body;
+
+  if (!game) {
+    res.status(400).json({ error: 'Game data required' });
+    return;
+  }
+
+  // Insert game
+  db.prepare(
+    `INSERT INTO games (id, name, creator_id, visibility, password, current_round, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(game.id, game.name, authedReq.userId, game.visibility, game.password || null, game.currentRound, game.createdAt);
+
+  // Insert creator as player
+  db.prepare('INSERT INTO game_players (game_id, user_id, role) VALUES (?, ?, ?)').run(game.id, authedReq.userId, 'creator');
+
+  // Insert invited users
+  if (game.invitedUserIds?.length) {
+    const insertInvite = db.prepare('INSERT OR IGNORE INTO game_invitations (game_id, user_id) VALUES (?, ?)');
+    for (const uid of game.invitedUserIds) {
+      insertInvite.run(game.id, uid);
+    }
+  }
+
+  // Insert rounds
+  if (game.rounds?.length) {
+    const insertRound = db.prepare(
+      `INSERT INTO rounds (game_id, round_number, holes_json, word_mode, front_nine_theme, back_nine_theme, start_date,
+       start_word_mode_front, start_word_mode_back, start_word_theme_front, start_word_theme_back)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    for (const round of game.rounds) {
+      insertRound.run(
+        game.id, round.roundNumber, JSON.stringify(round.holes || []),
+        round.wordMode || 'custom',
+        round.frontNineTheme || null, round.backNineTheme || null, round.startDate,
+        round.startWordModeFront || null, round.startWordModeBack || null,
+        round.startWordThemeFront || null, round.startWordThemeBack || null
+      );
+    }
+  }
+
+  // Store words
+  if (words) {
+    db.prepare(
+      `INSERT OR REPLACE INTO game_words (game_id, round_number, words_json) VALUES (?, ?, ?)`
+    ).run(game.id, 1, JSON.stringify(words));
+  }
+
+  // Store start words
+  if (startWords?.length) {
+    db.prepare(
+      `INSERT OR REPLACE INTO game_start_words (game_id, round_number, words_json) VALUES (?, ?, ?)`
+    ).run(game.id, 1, JSON.stringify(startWords));
+  }
+
+  // Return the full game
+  const saved = db.prepare('SELECT * FROM games WHERE id = ?').get(game.id) as Record<string, unknown>;
+  res.status(201).json(formatGame(saved));
+});
+
+app.patch('/api/games/:id', requireAuth, (req, res) => {
+  const { playerIds, invitedUserIds, currentRound, rounds } = req.body;
+  const gameId = req.params.id;
+
+  const game = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId);
+  if (!game) {
+    res.status(404).json({ error: 'Game not found' });
+    return;
+  }
+
+  if (currentRound !== undefined) {
+    db.prepare('UPDATE games SET current_round = ? WHERE id = ?').run(currentRound, gameId);
+  }
+
+  // Sync players
+  if (playerIds) {
+    db.prepare('DELETE FROM game_players WHERE game_id = ?').run(gameId);
+    const insert = db.prepare('INSERT OR IGNORE INTO game_players (game_id, user_id, role) VALUES (?, ?, ?)');
+    for (const pid of playerIds) {
+      insert.run(gameId, pid, 'player');
+    }
+  }
+
+  // Sync invitations
+  if (invitedUserIds !== undefined) {
+    db.prepare('DELETE FROM game_invitations WHERE game_id = ?').run(gameId);
+    const insert = db.prepare('INSERT OR IGNORE INTO game_invitations (game_id, user_id) VALUES (?, ?)');
+    for (const uid of invitedUserIds) {
+      insert.run(gameId, uid);
+    }
+  }
+
+  // Add new rounds
+  if (rounds) {
+    for (const round of rounds) {
+      db.prepare(
+        `INSERT OR REPLACE INTO rounds (game_id, round_number, holes_json, word_mode, front_nine_theme, back_nine_theme, start_date,
+         start_word_mode_front, start_word_mode_back, start_word_theme_front, start_word_theme_back)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        gameId, round.roundNumber, JSON.stringify(round.holes || []),
+        round.wordMode || 'custom',
+        round.frontNineTheme || null, round.backNineTheme || null, round.startDate,
+        round.startWordModeFront || null, round.startWordModeBack || null,
+        round.startWordThemeFront || null, round.startWordThemeBack || null
+      );
+    }
+  }
+
+  const updated = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId) as Record<string, unknown>;
+  res.json(formatGame(updated));
+});
+
+app.delete('/api/games/:id', requireAuth, (req, res) => {
+  const authedReq = req as AuthedRequest;
+  const game = db.prepare('SELECT * FROM games WHERE id = ?').get(req.params.id) as Record<string, string> | undefined;
+  if (!game) {
+    res.status(404).json({ error: 'Game not found' });
+    return;
+  }
+  if (game.creator_id !== authedReq.userId) {
+    res.status(403).json({ error: 'Only the creator can delete a game' });
+    return;
+  }
+  db.prepare('DELETE FROM games WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ---------- Game Words endpoints ----------
+
+app.get('/api/games/:gameId/words/:roundNumber', (_req, res) => {
+  const row = db.prepare('SELECT words_json FROM game_words WHERE game_id = ? AND round_number = ?')
+    .get(_req.params.gameId, parseInt(_req.params.roundNumber)) as { words_json: string } | undefined;
+  res.json(row ? JSON.parse(row.words_json) : []);
+});
+
+app.put('/api/games/:gameId/words/:roundNumber', requireAuth, (req, res) => {
+  const { words } = req.body;
+  db.prepare(
+    `INSERT OR REPLACE INTO game_words (game_id, round_number, words_json) VALUES (?, ?, ?)`
+  ).run(req.params.gameId, parseInt(req.params.roundNumber), JSON.stringify(words));
+  res.json({ success: true });
+});
+
+// ---------- Game Start Words endpoints ----------
+
+app.get('/api/games/:gameId/start-words/:roundNumber', (_req, res) => {
+  const row = db.prepare('SELECT words_json FROM game_start_words WHERE game_id = ? AND round_number = ?')
+    .get(_req.params.gameId, parseInt(_req.params.roundNumber)) as { words_json: string } | undefined;
+  res.json(row ? JSON.parse(row.words_json) : []);
+});
+
+app.put('/api/games/:gameId/start-words/:roundNumber', requireAuth, (req, res) => {
+  const { words } = req.body;
+  db.prepare(
+    `INSERT OR REPLACE INTO game_start_words (game_id, round_number, words_json) VALUES (?, ?, ?)`
+  ).run(req.params.gameId, parseInt(req.params.roundNumber), JSON.stringify(words));
+  res.json({ success: true });
+});
+
+// ---------- Round Results endpoints ----------
+
+app.get('/api/results', (_req, res) => {
+  const rows = db.prepare('SELECT * FROM round_results').all() as Record<string, unknown>[];
+  res.json(rows.map(formatRoundResult));
+});
+
+app.get('/api/games/:gameId/results', (_req, res) => {
+  const rows = db.prepare('SELECT * FROM round_results WHERE game_id = ?')
+    .all(_req.params.gameId) as Record<string, unknown>[];
+  res.json(rows.map(formatRoundResult));
+});
+
+app.get('/api/games/:gameId/results/:roundNumber/:userId', (_req, res) => {
+  const row = db.prepare(
+    'SELECT * FROM round_results WHERE game_id = ? AND round_number = ? AND user_id = ?'
+  ).get(_req.params.gameId, parseInt(_req.params.roundNumber), _req.params.userId) as Record<string, unknown> | undefined;
+  if (!row) {
+    res.json(null);
+    return;
+  }
+  res.json(formatRoundResult(row));
+});
+
+app.get('/api/users/:userId/results', (_req, res) => {
+  const rows = db.prepare('SELECT * FROM round_results WHERE user_id = ?')
+    .all(_req.params.userId) as Record<string, unknown>[];
+  res.json(rows.map(formatRoundResult));
+});
+
+app.put('/api/results', requireAuth, (req, res) => {
+  const result = req.body;
+
+  db.prepare(
+    `INSERT OR REPLACE INTO round_results (game_id, round_number, user_id, holes_json, total_score, completed_at)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(
+    result.gameId,
+    result.roundNumber,
+    result.userId,
+    JSON.stringify(result.holes),
+    result.totalScore,
+    result.completedAt || null,
+  );
+
+  res.json({ success: true });
+});
+
+// ---------- Wordle Imported Stats endpoints ----------
+
+app.get('/api/users/:userId/wordle-stats', (_req, res) => {
+  const row = db.prepare('SELECT * FROM wordle_imported_stats WHERE user_id = ?')
+    .get(_req.params.userId) as Record<string, unknown> | undefined;
+  if (!row) {
+    res.json(null);
+    return;
+  }
+  res.json(formatWordleStats(row));
+});
+
+app.put('/api/users/:userId/wordle-stats', requireAuth, (req, res) => {
+  const authedReq = req as AuthedRequest;
+  if (authedReq.userId !== req.params.userId) {
+    res.status(403).json({ error: 'Cannot update another user\'s stats' });
+    return;
+  }
+
+  const stats = req.body;
+  db.prepare(
+    `INSERT OR REPLACE INTO wordle_imported_stats
+     (user_id, games_played, games_won, current_streak, max_streak, guess_distribution_json, imported_at, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    req.params.userId,
+    stats.gamesPlayed,
+    stats.gamesWon,
+    stats.currentStreak,
+    stats.maxStreak,
+    JSON.stringify(stats.guessDistribution),
+    stats.importedAt || new Date().toISOString(),
+    stats.source || 'manual',
+  );
+
+  res.json({ success: true });
+});
+
+app.delete('/api/users/:userId/wordle-stats', requireAuth, (req, res) => {
+  const authedReq = req as AuthedRequest;
+  if (authedReq.userId !== req.params.userId) {
+    res.status(403).json({ error: 'Cannot delete another user\'s stats' });
+    return;
+  }
+  db.prepare('DELETE FROM wordle_imported_stats WHERE user_id = ?').run(req.params.userId);
+  res.json({ success: true });
+});
+
+// ---------- Helpers ----------
+
+function formatUser(row: Record<string, string>) {
+  return {
+    id: row.id,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    email: row.email,
+    nickname: row.nickname || undefined,
+    avatar: {
+      category: row.avatar_category,
+      variant: row.avatar_variant,
+    },
+    theme: row.theme,
+    createdAt: row.created_at,
+  };
+}
+
+function formatGame(row: Record<string, unknown>) {
+  const gameId = row.id as string;
+
+  // Get players
+  const players = db.prepare('SELECT user_id FROM game_players WHERE game_id = ?')
+    .all(gameId) as { user_id: string }[];
+
+  // Get invitations
+  const invites = db.prepare('SELECT user_id FROM game_invitations WHERE game_id = ?')
+    .all(gameId) as { user_id: string }[];
+
+  // Get rounds
+  const rounds = db.prepare('SELECT * FROM rounds WHERE game_id = ? ORDER BY round_number')
+    .all(gameId) as Record<string, unknown>[];
+
+  return {
+    id: gameId,
+    name: row.name,
+    creatorId: row.creator_id,
+    visibility: row.visibility,
+    password: row.password || undefined,
+    invitedUserIds: invites.map(i => i.user_id),
+    playerIds: players.map(p => p.user_id),
+    rounds: rounds.map(formatRound),
+    currentRound: row.current_round,
+    createdAt: row.created_at,
+  };
+}
+
+function formatRound(row: Record<string, unknown>) {
+  const roundNumber = row.round_number as number;
+  const holes = row.holes_json ? JSON.parse(row.holes_json as string) : [];
+
+  return {
+    roundNumber,
+    holes,
+    wordMode: row.word_mode || 'custom',
+    frontNineTheme: row.front_nine_theme || undefined,
+    backNineTheme: row.back_nine_theme || undefined,
+    startDate: row.start_date,
+    startWordModeFront: row.start_word_mode_front || undefined,
+    startWordModeBack: row.start_word_mode_back || undefined,
+    startWordThemeFront: row.start_word_theme_front || undefined,
+    startWordThemeBack: row.start_word_theme_back || undefined,
+  };
+}
+
+function formatRoundResult(row: Record<string, unknown>) {
+  return {
+    gameId: row.game_id,
+    roundNumber: row.round_number,
+    userId: row.user_id,
+    holes: JSON.parse(row.holes_json as string),
+    totalScore: row.total_score,
+    completedAt: row.completed_at || undefined,
+  };
+}
+
+function formatWordleStats(row: Record<string, unknown>) {
+  return {
+    gamesPlayed: row.games_played,
+    gamesWon: row.games_won,
+    currentStreak: row.current_streak,
+    maxStreak: row.max_streak,
+    guessDistribution: JSON.parse(row.guess_distribution_json as string),
+    importedAt: row.imported_at,
+    source: row.source,
+  };
+}
+
+// ---------- Start server ----------
+
+app.listen(PORT, () => {
+  console.log(`[Server] Running on http://localhost:${PORT}`);
+});

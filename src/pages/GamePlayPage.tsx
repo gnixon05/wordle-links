@@ -44,13 +44,43 @@ export default function GamePlayPage() {
   const [fetchFailed, setFetchFailed] = useState(false);
   const [fetchedWords, setFetchedWords] = useState<Record<number, string>>({});
 
+  // Async-loaded data
+  const [words, setWords] = useState<string[]>([]);
+  const [startWords, setStartWords] = useState<string[]>([]);
+  const [completedHoles, setCompletedHoles] = useState<HoleResult[]>([]);
+  const [userResultCompletedAt, setUserResultCompletedAt] = useState<string | undefined>();
+  const [allComplete, setAllComplete] = useState(false);
+
   const game = gameId ? getGame(gameId) : undefined;
   const roundNumber = game?.currentRound || 1;
   const round = game?.rounds.find(r => r.roundNumber === roundNumber);
-  const words = gameId ? getWordsForRound(gameId, roundNumber) : [];
-  const startWords = gameId ? getStartWordsForRound(gameId, roundNumber) : [];
-  const userResult = gameId && user ? getUserResult(gameId, roundNumber, user.id) : undefined;
   const startDate = round?.startDate || '';
+
+  // Load words and user result from API
+  useEffect(() => {
+    if (!gameId) return;
+    getWordsForRound(gameId, roundNumber).then(setWords);
+    getStartWordsForRound(gameId, roundNumber).then(setStartWords);
+  }, [gameId, roundNumber, getWordsForRound, getStartWordsForRound]);
+
+  // Load user result
+  const loadUserResult = useCallback(() => {
+    if (!gameId || !user) return;
+    getUserResult(gameId, roundNumber, user.id).then(result => {
+      setCompletedHoles(result?.holes || []);
+      setUserResultCompletedAt(result?.completedAt);
+    });
+  }, [gameId, roundNumber, user, getUserResult]);
+
+  useEffect(() => {
+    loadUserResult();
+  }, [loadUserResult]);
+
+  // Check if all players complete
+  useEffect(() => {
+    if (!gameId) return;
+    isRoundCompleteForAllPlayers(gameId, roundNumber).then(setAllComplete);
+  }, [gameId, roundNumber, isRoundCompleteForAllPlayers, userResultCompletedAt]);
 
   const holeConfig = round?.holes.find(h => h.holeNumber === currentHole);
   const par: HolePar = holeConfig?.par || 4;
@@ -65,15 +95,9 @@ export default function GamePlayPage() {
     : (round?.startWordModeBack || round?.startWordMode || 'none');
   const hasStartWord = startWord.length > 0 && holeStartWordMode !== 'none';
 
-  const completedHoles: HoleResult[] = userResult?.holes || [];
   const currentHoleResult = completedHoles.find(h => h.holeNumber === currentHole);
-
-  // Stable primitives derived from currentHoleResult for use as useEffect dependencies.
-  // getUserResult reads from localStorage every render, producing new object references
-  // even when the data hasn't changed, which would cause infinite re-render loops.
   const currentHoleCompleted = !!currentHoleResult;
 
-  // Check hole availability
   const holeAvailability = startDate ? getHoleAvailability(startDate, currentHole) : 'available';
   const isHoleLocked = holeAvailability === 'locked';
   const isHolePast = holeAvailability === 'past' && !currentHoleResult;
@@ -151,7 +175,6 @@ export default function GamePlayPage() {
       !startWordRef.current
     ) {
       startWordRef.current = true;
-      // Auto-evaluate the start word as the first guess
       const result = evaluateGuess(startWord, targetWord);
       const newGuesses = [result];
       setGuesses(newGuesses);
@@ -159,7 +182,6 @@ export default function GamePlayPage() {
 
       const correct = isGuessCorrect(result);
       if (correct) {
-        // Unlikely but handle: start word matches target
         const score = calculateHoleScore(true, 1, par);
         const holeResult: HoleResult = {
           holeNumber: currentHole,
@@ -169,19 +191,18 @@ export default function GamePlayPage() {
           score,
         };
         if (gameId && user) {
-          submitHoleResult(gameId, roundNumber, holeResult);
+          submitHoleResult(gameId, roundNumber, holeResult).then(loadUserResult);
         }
         setGameOver(true);
         setSolved(true);
       }
     }
-    // Reset ref when hole changes
     return () => { startWordRef.current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     hasStartWord, isHolePlayable, startWordApplied, currentHoleCompleted,
     guesses.length, targetWord, startWord, par, currentHole, gameId,
-    user, roundNumber, submitHoleResult,
+    user, roundNumber, submitHoleResult, loadUserResult,
   ]);
 
   const displayMessage = useCallback((msg: string) => {
@@ -232,7 +253,7 @@ export default function GamePlayPage() {
         score,
       };
 
-      submitHoleResult(gameId, roundNumber, holeResult);
+      submitHoleResult(gameId, roundNumber, holeResult).then(loadUserResult);
       setGameOver(true);
       setSolved(correct);
 
@@ -246,7 +267,7 @@ export default function GamePlayPage() {
   }, [
     gameOver, gameId, user, currentGuess, wordLength, targetWord,
     guesses, maxGuesses, par, currentHole, roundNumber,
-    submitHoleResult, displayMessage, isHoleLocked, isHolePast,
+    submitHoleResult, displayMessage, isHoleLocked, isHolePast, loadUserResult,
   ]);
 
   // Physical keyboard handler
@@ -291,8 +312,7 @@ export default function GamePlayPage() {
     );
   }
 
-  const allComplete = isRoundCompleteForAllPlayers(gameId!, roundNumber);
-  const userRoundComplete = userResult?.completedAt != null;
+  const userRoundComplete = userResultCompletedAt != null;
   const keys = buildKeyboardState(guesses);
 
   // Find next unplayed hole that is available today

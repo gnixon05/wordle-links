@@ -167,9 +167,12 @@ wordle-links/
 
 ## Deployment
 
-Wordle Links requires both a **static file server** (for the React frontend) and a **Node.js process** (for the Express API server). Below are two deployment options.
+Wordle Links requires both a **static file server** (for the React frontend) and a **Node.js process** (for the Express API server). Below are three deployment options, starting with the simplest.
 
-### Prerequisites (Both Options)
+### Prerequisites (All Options)
+
+- **Node.js** >= 18.x and **npm** >= 9.x
+- A clone of this repository
 
 1. Build the frontend:
 
@@ -186,23 +189,72 @@ Wordle Links requires both a **static file server** (for the React frontend) and
    npm run build
    ```
 
+The build output goes to `dist/` (frontend static files). The API server runs directly from `server/index.ts`.
+
 ---
 
-### Option A: EC2 / VPS (Recommended)
+### Option A: EC2 / VPS — Full Walkthrough from Scratch
 
-Since the app requires a Node.js backend, a server-based deployment is the simplest approach.
+This walks you through everything from getting a server to a live HTTPS deployment.
 
-#### 1. Launch a Server
+#### 1. Get a Server
 
-- **AWS EC2:** `t2.micro` (free tier) with Amazon Linux 2023 or Ubuntu 22.04
-- **Other VPS:** DigitalOcean, Linode, Render, Railway, etc.
-- **Security group / firewall:** Allow ports **22** (SSH), **80** (HTTP), **443** (HTTPS)
+Sign up with any cloud provider and create a virtual machine:
 
-#### 2. Install Dependencies
+| Provider | Free Tier | Recommended Instance |
+|:---------|:----------|:---------------------|
+| **AWS EC2** | 12 months free | `t2.micro` / `t3.micro` with Ubuntu 22.04 or Amazon Linux 2023 |
+| **DigitalOcean** | $200 trial credit | Basic Droplet, 1 vCPU / 1 GB RAM |
+| **Linode (Akamai)** | $100 trial credit | Nanode 1 GB |
+| **Vultr** | — | Cloud Compute, 1 vCPU / 1 GB RAM |
+| **Hetzner** | — | CX22 (cheapest EU option) |
+
+#### 2. Configure Firewall / Security Group
+
+Open these ports in your provider's firewall or security group settings:
+
+| Port | Protocol | Purpose |
+|:-----|:---------|:--------|
+| 22 | TCP | SSH access |
+| 80 | TCP | HTTP |
+| 443 | TCP | HTTPS |
+
+**AWS example:** In the EC2 console, edit your instance's security group inbound rules to allow TCP 22, 80, and 443 from `0.0.0.0/0`.
+
+#### 3. Connect to Your Server
 
 ```bash
-# Ubuntu
+# Replace with your server's public IP and key file
+ssh -i ~/.ssh/your-key.pem ubuntu@YOUR_SERVER_IP
+```
+
+If you're using a password-based login (DigitalOcean, Vultr), just `ssh root@YOUR_SERVER_IP`.
+
+#### 4. Initial Server Setup
+
+```bash
+# Update packages
 sudo apt update && sudo apt upgrade -y
+
+# Create a non-root user (skip if your provider already created one)
+sudo adduser deploy
+sudo usermod -aG sudo deploy
+
+# Set up SSH key for the new user (copy from root)
+sudo mkdir -p /home/deploy/.ssh
+sudo cp ~/.ssh/authorized_keys /home/deploy/.ssh/
+sudo chown -R deploy:deploy /home/deploy/.ssh
+
+# Set up basic firewall (if not using provider firewall)
+sudo ufw allow OpenSSH
+sudo ufw allow 'Nginx Full'
+sudo ufw enable
+```
+
+#### 5. Install Node.js, Nginx, and Git
+
+```bash
+# Ubuntu / Debian
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs nginx git
 
@@ -211,17 +263,32 @@ sudo dnf update -y
 sudo dnf install -y nodejs20 npm nginx git
 ```
 
-#### 3. Clone and Build
+Verify:
+
+```bash
+node -v   # Should print v20.x.x
+npm -v    # Should print 9.x or higher
+nginx -v  # Should print nginx/1.x.x
+```
+
+#### 6. Clone and Build
 
 ```bash
 cd ~
 git clone https://github.com/your-username/wordle-links.git
 cd wordle-links
 npm install
+
+# (Optional) Configure Pexels API key
+cp .env.example .env
+nano .env   # Add VITE_PEXELS_API_KEY=your_key_here
+
 npm run build
 ```
 
-#### 4. Run the API Server with systemd
+#### 7. Run the API Server with systemd
+
+Create a systemd service so the API server starts on boot and auto-restarts on failure.
 
 Create `/etc/systemd/system/wordle-links-api.service`:
 
@@ -244,16 +311,21 @@ Environment=PORT=3001
 WantedBy=multi-user.target
 ```
 
+> **Note:** Replace `User=ubuntu` and `WorkingDirectory` paths with your actual username if different (e.g., `deploy`, `ec2-user`).
+
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable wordle-links-api
 sudo systemctl start wordle-links-api
 
-# Check status
+# Verify it's running
 sudo systemctl status wordle-links-api
+curl http://localhost:3001/api/health   # Should return a response
 ```
 
-#### 5. Configure Nginx
+#### 8. Configure Nginx as a Reverse Proxy
+
+Nginx serves the static frontend files and proxies `/api/*` requests to the Express backend.
 
 Create `/etc/nginx/conf.d/wordle-links.conf`:
 
@@ -295,22 +367,41 @@ server {
 }
 ```
 
+> **Note:** Replace `your-domain.com` with your actual domain. If you don't have a domain yet, use your server's public IP address.
+
 ```bash
-sudo rm -f /etc/nginx/sites-enabled/default  # Ubuntu only
-sudo nginx -t
+sudo rm -f /etc/nginx/sites-enabled/default  # Ubuntu only — remove default site
+sudo nginx -t                                 # Validate config
 sudo systemctl enable nginx
 sudo systemctl restart nginx
 ```
 
-#### 6. Add HTTPS with Let's Encrypt (Recommended)
+Visit `http://your-domain.com` (or `http://YOUR_SERVER_IP`) — you should see the app.
+
+#### 9. Point Your Domain (Optional but Recommended)
+
+In your domain registrar's DNS settings, add an **A record**:
+
+| Type | Name | Value |
+|:-----|:-----|:------|
+| A | `@` | `YOUR_SERVER_IP` |
+| A | `www` | `YOUR_SERVER_IP` |
+
+DNS propagation takes a few minutes to a few hours.
+
+#### 10. Add HTTPS with Let's Encrypt
+
+Once your domain resolves to your server:
 
 ```bash
 sudo apt install -y certbot python3-certbot-nginx   # Ubuntu
-sudo certbot --nginx -d your-domain.com
-sudo certbot renew --dry-run  # verify auto-renewal
+sudo certbot --nginx -d your-domain.com -d www.your-domain.com
+sudo certbot renew --dry-run  # Verify auto-renewal works
 ```
 
-#### Redeploying
+Certbot automatically modifies your Nginx config to redirect HTTP to HTTPS and manage certificates. Certificates auto-renew via a systemd timer.
+
+#### Redeploying Updates
 
 ```bash
 cd ~/wordle-links
@@ -318,11 +409,82 @@ git pull origin master
 npm install
 npm run build
 sudo systemctl restart wordle-links-api
+# Nginx does not need a restart — it serves the new static files immediately
 ```
 
 ---
 
-### Option B: S3 + CloudFront (Frontend) + Separate API Host
+### Option B: Docker
+
+Run the entire stack in Docker containers. This is useful for consistent environments and easier scaling.
+
+#### 1. Create a `Dockerfile`
+
+```dockerfile
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/server ./server
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/package.json ./
+EXPOSE 3001
+CMD ["npx", "tsx", "server/index.ts"]
+```
+
+#### 2. Create a `docker-compose.yml`
+
+```yaml
+services:
+  app:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    volumes:
+      - db-data:/app/data
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./dist:/usr/share/nginx/html:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  db-data:
+```
+
+#### 3. Build and Run
+
+```bash
+docker compose up -d --build
+```
+
+#### 4. Redeploying
+
+```bash
+git pull origin master
+docker compose up -d --build
+```
+
+---
+
+### Option C: S3 + CloudFront (Frontend) + Separate API Host
 
 If you want CDN-distributed frontend hosting, deploy the frontend to S3/CloudFront and the API server separately (e.g., on EC2, ECS, Lambda, or Railway).
 
@@ -338,9 +500,9 @@ If you want CDN-distributed frontend hosting, deploy the frontend to S3/CloudFro
 
 Deploy the Express backend on any Node.js-capable platform:
 
-- **EC2:** Follow steps 2-4 from Option A above
+- **EC2:** Follow steps 5-7 from Option A above
 - **Railway / Render / Fly.io:** Push the repo and configure `npx tsx server/index.ts` as the start command
-- **ECS / Fargate:** Containerize with a Dockerfile
+- **ECS / Fargate:** Use the Dockerfile from Option B
 
 Configure the frontend to point to your API URL by setting `VITE_API_URL` in `.env` before building, or configure CloudFront to proxy `/api/*` paths to your API server's origin.
 
@@ -351,17 +513,23 @@ Configure the frontend to point to your API URL by setting `VITE_API_URL` in `.e
 | Variable | Required | Description |
 |:---------|:---------|:------------|
 | `VITE_PEXELS_API_KEY` | No | Pexels API key for golf course images (falls back to defaults) |
+| `VITE_API_URL` | No | API base URL for split frontend/backend deployments (default: same origin) |
 | `PORT` | No | API server port (default: `3001`) |
+| `NODE_ENV` | No | Set to `production` in deployed environments |
 
 ### Database
 
-The SQLite database file (`wordle-links.db`) is created automatically on first server start in the project root. To back it up:
+The SQLite database file (`wordle-links.db`) is created automatically on first server start in the project root. No database setup is needed.
+
+**Backups:**
 
 ```bash
 cp wordle-links.db wordle-links.db.backup
 ```
 
-To reset the database, delete the file and restart the server — all tables will be recreated (empty).
+**Reset:** Delete the file and restart the server — all tables will be recreated (empty).
+
+**Docker:** When using Docker, mount a volume for the database directory to persist data across container rebuilds (see the `docker-compose.yml` example above).
 
 ---
 
@@ -369,13 +537,16 @@ To reset the database, delete the file and restart the server — all tables wil
 
 | Issue | Solution |
 |:------|:---------|
-| API returns "Network error" | Ensure the Express server is running (`npm run dev:server`) |
+| API returns "Network error" | Ensure the Express server is running (`sudo systemctl status wordle-links-api` or `docker compose logs app`) |
 | SPA routes return 404 | Nginx: check `try_files` directive. S3: set error document to `index.html` |
 | CloudFront serves stale content | Create an invalidation: `aws cloudfront create-invalidation --distribution-id ID --paths "/*"` |
 | 502 Bad Gateway (Nginx) | Check `sudo systemctl status wordle-links-api` and `sudo nginx -t` |
 | Database locked errors | Ensure only one server process is running. SQLite uses WAL mode for concurrent reads |
 | Wordle word fetch fails | Check browser console for `[Wordle]` logs. The Vite proxy adds required headers for NYT API |
 | Build fails | Verify Node.js >= 18 with `node -v` |
+| Docker container won't start | Check logs with `docker compose logs app` and ensure port 3001 is not already in use |
+| HTTPS certificate errors | Run `sudo certbot renew` and check domain DNS points to the correct IP |
+| Permission denied on server | Ensure the systemd service `User` matches the owner of the project directory |
 
 ## Game Rules
 

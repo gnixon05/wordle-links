@@ -1,12 +1,20 @@
 import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 import db, { initializeDatabase } from './db.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(express.json({ limit: '5mb' }));
+
+// Serve static files from the Vite build output
+const distPath = path.resolve(__dirname, '..', 'dist');
+app.use(express.static(distPath));
 
 // Initialize database tables
 initializeDatabase();
@@ -366,15 +374,51 @@ app.get('/api/games/:gameId/results', (_req, res) => {
   res.json(rows.map(formatRoundResult));
 });
 
-app.get('/api/games/:gameId/results/:roundNumber/:userId', (_req, res) => {
+app.get('/api/games/:gameId/results/:roundNumber/:userId', (req, res) => {
+  const { gameId, roundNumber, userId } = req.params;
   const row = db.prepare(
     'SELECT * FROM round_results WHERE game_id = ? AND round_number = ? AND user_id = ?'
-  ).get(_req.params.gameId, parseInt(_req.params.roundNumber), _req.params.userId) as Record<string, unknown> | undefined;
+  ).get(gameId, parseInt(roundNumber), userId) as Record<string, unknown> | undefined;
   if (!row) {
     res.json(null);
     return;
   }
-  res.json(formatRoundResult(row));
+
+  const result = formatRoundResult(row);
+
+  // If the requesting user is different from the target user,
+  // check whether the requester has completed each hole.
+  // Strip guess letters for holes the requester hasn't played yet
+  // so that the answer isn't revealed on the daily leaderboard.
+  const requestingUserId = getSessionUserId(req);
+  if (requestingUserId && requestingUserId !== userId) {
+    const requesterRow = db.prepare(
+      'SELECT * FROM round_results WHERE game_id = ? AND round_number = ? AND user_id = ?'
+    ).get(gameId, parseInt(roundNumber), requestingUserId) as Record<string, unknown> | undefined;
+
+    const requesterHoles: Set<number> = new Set();
+    if (requesterRow) {
+      const requesterResult = formatRoundResult(requesterRow);
+      for (const hole of requesterResult.holes) {
+        requesterHoles.add(hole.holeNumber);
+      }
+    }
+
+    result.holes = result.holes.map((hole: { holeNumber: number; guesses: { letter: string; status: string }[][]; solved: boolean; score: number; targetWord: string }) => {
+      if (!requesterHoles.has(hole.holeNumber)) {
+        return {
+          ...hole,
+          targetWord: '',
+          guesses: hole.guesses.map((row: { letter: string; status: string }[]) =>
+            row.map(() => ({ letter: '', status: 'empty' }))
+          ),
+        };
+      }
+      return hole;
+    });
+  }
+
+  res.json(result);
 });
 
 app.get('/api/users/:userId/results', (_req, res) => {
@@ -572,6 +616,12 @@ function formatWordleStats(row: Record<string, unknown>) {
     source: row.source,
   };
 }
+
+// ---------- SPA fallback ----------
+// All non-API routes serve the React app
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
+});
 
 // ---------- Start server ----------
 

@@ -418,64 +418,15 @@ sudo systemctl restart wordle-links-api
 
 Run the entire stack in Docker containers. This is useful for consistent environments and easier scaling.
 
-#### 1. Create a `Dockerfile`
+A `Dockerfile` and `docker-compose.yml` are included in the repository. The key configuration is the `DATABASE_PATH` environment variable, which tells the server to store the SQLite database on the mounted volume so data persists across container rebuilds.
 
-```dockerfile
-FROM node:20-alpine AS build
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-FROM node:20-alpine
-WORKDIR /app
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/server ./server
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/package.json ./
-EXPOSE 3001
-CMD ["npx", "tsx", "server/index.ts"]
-```
-
-#### 2. Create a `docker-compose.yml`
-
-```yaml
-services:
-  app:
-    build: .
-    ports:
-      - "3001:3001"
-    environment:
-      - NODE_ENV=production
-      - PORT=3001
-    volumes:
-      - db-data:/app/data
-    restart: unless-stopped
-
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./dist:/usr/share/nginx/html:ro
-    depends_on:
-      - app
-    restart: unless-stopped
-
-volumes:
-  db-data:
-```
-
-#### 3. Build and Run
+#### 1. Build and Run
 
 ```bash
 docker compose up -d --build
 ```
 
-#### 4. Redeploying
+#### 2. Redeploying
 
 ```bash
 git pull origin master
@@ -516,6 +467,7 @@ Configure the frontend to point to your API URL by setting `VITE_API_URL` in `.e
 | `VITE_API_URL` | No | API base URL for split frontend/backend deployments (default: same origin) |
 | `PORT` | No | API server port (default: `3001`) |
 | `NODE_ENV` | No | Set to `production` in deployed environments |
+| `DATABASE_PATH` | No | Absolute path to SQLite database file (default: `wordle-links.db` in project root). Set this to a path on a persistent volume in Docker to survive redeployments. |
 
 ### Database
 

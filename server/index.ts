@@ -617,33 +617,9 @@ function formatWordleStats(row: Record<string, unknown>) {
   };
 }
 
-// ---------- NYT Wordle proxy ----------
-// Replicate the Vite dev proxy for production: /api/wordle/* -> nytimes.com/svc/wordle/v2/*
-app.get('/api/wordle/*', async (req, res) => {
-  const nytPath = req.path.replace(/^\/api\/wordle/, '/svc/wordle/v2');
-  const url = `https://www.nytimes.com${nytPath}`;
-  try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json',
-        'Referer': 'https://www.nytimes.com/games/wordle/index.html',
-      },
-    });
-    const contentType = response.headers.get('content-type');
-    if (contentType) res.setHeader('Content-Type', contentType);
-    res.status(response.status);
-    const body = await response.arrayBuffer();
-    res.send(Buffer.from(body));
-  } catch (err) {
-    console.error('[Wordle proxy] Error:', err);
-    res.status(502).json({ error: 'Failed to fetch from NYT Wordle API' });
-  }
-});
-
 // ---------- SPA fallback ----------
 // All non-API routes serve the React app
-app.get('*', (_req, res) => {
+app.get('*path', (_req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 

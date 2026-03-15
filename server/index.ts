@@ -449,6 +449,42 @@ app.delete('/api/users/:userId/wordle-stats', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
+// ---------- Wordle NYT Proxy ----------
+
+app.get('/api/wordle/:date.json', async (req, res) => {
+  const dateStr = req.params.date;
+
+  // Validate date format to prevent path traversal
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    res.status(400).json({ error: 'Invalid date format. Expected YYYY-MM-DD.' });
+    return;
+  }
+
+  const nytUrl = `https://www.nytimes.com/svc/wordle/v2/${dateStr}.json`;
+
+  try {
+    const response = await fetch(nytUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+        'Referer': 'https://www.nytimes.com/games/wordle/index.html',
+      },
+    });
+
+    if (!response.ok) {
+      console.warn(`[Wordle Proxy] NYT responded ${response.status} for ${dateStr}`);
+      res.status(response.status).json({ error: `NYT API returned ${response.status}` });
+      return;
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    console.error(`[Wordle Proxy] Error fetching ${dateStr}:`, err);
+    res.status(502).json({ error: 'Failed to fetch from NYT API' });
+  }
+});
+
 // ---------- Helpers ----------
 
 function formatUser(row: Record<string, string>) {

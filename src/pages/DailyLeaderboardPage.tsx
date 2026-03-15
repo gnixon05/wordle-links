@@ -29,6 +29,7 @@ interface DailyGameEntry {
   holePar: HolePar;
   holeDate: string;
   players: DailyPlayerResult[];
+  currentUserHasPlayed: boolean;
 }
 
 export default function DailyLeaderboardPage() {
@@ -90,6 +91,10 @@ export default function DailyLeaderboardPage() {
           return 0;
         });
 
+        const currentUserHasPlayed = players.some(
+          p => p.userId === user.id && p.hasPlayed
+        );
+
         entries.push({
           gameId: game.id,
           gameName: game.name,
@@ -97,6 +102,7 @@ export default function DailyLeaderboardPage() {
           holePar: holeConfig.par,
           holeDate: formatHoleDate(round.startDate, todaysHole),
           players,
+          currentUserHasPlayed,
         });
       }
 
@@ -156,6 +162,7 @@ export default function DailyLeaderboardPage() {
                   {entry.players.map((player, idx) => {
                     const isCurrentUser = player.userId === user?.id;
                     const rank = player.hasPlayed ? idx + 1 : null;
+                    const canSeeBoard = isCurrentUser || entry.currentUserHasPlayed;
 
                     return (
                       <div key={player.userId} className="col-12 col-md-6 col-lg-4">
@@ -165,7 +172,7 @@ export default function DailyLeaderboardPage() {
                         >
                           {/* Player header */}
                           <div className="d-flex align-items-center gap-2 mb-2">
-                            {rank !== null && (
+                            {rank !== null && canSeeBoard && (
                               <span className="fw-bold" style={{ minWidth: '24px' }}>
                                 {rank === 1 && <span dangerouslySetInnerHTML={{ __html: '&#127942;' }} />}
                                 {rank === 2 && <span dangerouslySetInnerHTML={{ __html: '&#129352;' }} />}
@@ -180,7 +187,7 @@ export default function DailyLeaderboardPage() {
                             </span>
                           </div>
 
-                          {player.hasPlayed ? (
+                          {player.hasPlayed && canSeeBoard ? (
                             <>
                               {/* Score badge */}
                               <div className="mb-2">
@@ -214,6 +221,10 @@ export default function DailyLeaderboardPage() {
                                 ))}
                               </div>
                             </>
+                          ) : player.hasPlayed && !canSeeBoard ? (
+                            <div className="text-center text-muted py-3">
+                              <small>Complete today's hole to see this board</small>
+                            </div>
                           ) : (
                             <div className="text-center text-muted py-3">
                               <small>Hasn't played yet</small>

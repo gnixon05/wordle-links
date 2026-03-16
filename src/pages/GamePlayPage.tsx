@@ -26,7 +26,7 @@ import {
 
 export default function GamePlayPage() {
   const { gameId } = useParams<{ gameId: string }>();
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
   const {
     getGame, getWordsForRound, getStartWordsForRound, updateWordForHole,
     submitHoleResult, getUserResult, isRoundCompleteForAllPlayers,
@@ -289,6 +289,8 @@ export default function GamePlayPage() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleEnter, handleBackspace, handleKeyPress]);
+
+  if (!user) return null;
 
   if (!game || !round) {
     return (

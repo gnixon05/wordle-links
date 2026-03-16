@@ -30,7 +30,7 @@ function createClassicHoles(): HoleConfig[] {
 
 export default function CreateGamePage() {
   const navigate = useNavigate();
-  const { user, isAuthenticated, allUsers } = useAuth();
+  const { user, allUsers } = useAuth();
   const { createGame } = useGame();
 
   const [gameName, setGameName] = useState('');
@@ -45,6 +45,8 @@ export default function CreateGamePage() {
   const [startWordThemeFront, setStartWordThemeFront] = useState<ThemeOption>('golf');
   const [startWordThemeBack, setStartWordThemeBack] = useState<ThemeOption>('golf');
   const [error, setError] = useState('');
+
+  if (!user) return null;
 
   const otherUsers = allUsers.filter(u => u.id !== user.id);
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
 import { HolePar } from '../types';
@@ -111,10 +111,6 @@ export default function DailyLeaderboardPage() {
 
     loadEntries();
   }, [isAuthenticated, user, getUserGames, getUserResult, allUsers]);
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
 
   return (
     <div className="container py-4">

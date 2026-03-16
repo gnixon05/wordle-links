@@ -6,7 +6,7 @@ import AvatarPicker from '../components/common/AvatarPicker';
 
 export default function SignupPage() {
   const navigate = useNavigate();
-  const { signup, isAuthenticated } = useAuth();
+  const { signup, isAuthenticated, isLoading } = useAuth();
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -16,6 +16,16 @@ export default function SignupPage() {
   const [nickname, setNickname] = useState('');
   const [avatar, setAvatar] = useState<AvatarChoice>({ category: 'golfball', variant: 'cowboy' });
   const [error, setError] = useState('');
+
+  if (isLoading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}>
+        <div className="spinner-border text-success" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;

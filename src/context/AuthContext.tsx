@@ -42,17 +42,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Restore session on mount
+  // Restore session on mount — retry on network errors (common on mobile resume)
   useEffect(() => {
+    let cancelled = false;
     async function restoreSession() {
-      const result = await apiGetMe();
-      if (result.user) {
-        setUser(result.user);
+      const maxRetries = 2;
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const result = await apiGetMe();
+        if (cancelled) return;
+
+        if (result.user) {
+          setUser(result.user);
+          break;
+        }
+
+        // If it's a network error and we have retries left, wait and try again
+        if (result.error === 'Network error' && attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+
+        // Auth failure or exhausted retries — stop
+        break;
       }
-      setIsLoading(false);
+      if (!cancelled) setIsLoading(false);
     }
     restoreSession();
     refreshUsers();
+    return () => { cancelled = true; };
   }, [refreshUsers]);
 
   const login = useCallback(async (email: string, password: string) => {

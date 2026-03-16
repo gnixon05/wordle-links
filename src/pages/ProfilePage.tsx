@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
 import { useTheme } from '../context/ThemeContext';
@@ -30,10 +30,6 @@ export default function ProfilePage() {
     getUserResults(user.id).then(setAllResults);
     apiGetGames().then(setAllGamesData);
   }, [user, getUserResults]);
-
-  if (!isAuthenticated || !user) {
-    return <Navigate to="/login" replace />;
-  }
 
   const invitations = getUserInvitations();
   const myGames = getUserGames();

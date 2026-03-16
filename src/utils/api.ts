@@ -1,16 +1,42 @@
 import { User, Game, RoundResult, WordleImportedStats } from '../types';
 
 const SESSION_KEY = 'wl_session_token';
+const SESSION_COOKIE = 'wl_session';
+
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function setCookie(name: string, value: string, days: number): void {
+  const expires = new Date(Date.now() + days * 864e5).toUTCString();
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+}
+
+function removeCookie(name: string): void {
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
+}
 
 function getSessionToken(): string | null {
-  return localStorage.getItem(SESSION_KEY);
+  // Try localStorage first, fall back to cookie (mobile browsers sometimes clear localStorage)
+  let token = localStorage.getItem(SESSION_KEY);
+  if (!token) {
+    token = getCookie(SESSION_COOKIE);
+    if (token) {
+      // Restore to localStorage from cookie
+      try { localStorage.setItem(SESSION_KEY, token); } catch { /* quota exceeded, cookie is enough */ }
+    }
+  }
+  return token;
 }
 
 function setSessionToken(token: string | null): void {
   if (token) {
-    localStorage.setItem(SESSION_KEY, token);
+    try { localStorage.setItem(SESSION_KEY, token); } catch { /* ignore */ }
+    setCookie(SESSION_COOKIE, token, 365);
   } else {
     localStorage.removeItem(SESSION_KEY);
+    removeCookie(SESSION_COOKIE);
   }
 }
 
@@ -92,12 +118,34 @@ export async function apiGetMe(): Promise<{ user?: User; error?: string }> {
   const token = getSessionToken();
   if (!token) return { error: 'No session' };
 
-  const result = await apiRequest<{ user: User }>('/api/auth/me');
-  if (result.data) {
-    return { user: result.data.user };
+  // Use a direct fetch so we can distinguish 401 (invalid session) from network errors.
+  // Only clear the token on a definitive 401 — never on network failures,
+  // which are common on mobile when resuming from background.
+  try {
+    const res = await fetch('/api/auth/me', {
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(),
+      },
+    });
+
+    if (res.ok) {
+      const body = await res.json();
+      return { user: body.user };
+    }
+
+    // Server explicitly rejected the session — clear it
+    if (res.status === 401) {
+      setSessionToken(null);
+      return { error: 'Session expired' };
+    }
+
+    // Other server errors (500, 502, etc.) — keep the token, let the user retry
+    return { error: `Server error (${res.status})` };
+  } catch {
+    // Network error (offline, DNS failure, etc.) — keep the token intact
+    return { error: 'Network error' };
   }
-  setSessionToken(null);
-  return { error: result.error };
 }
 
 // ---------- User API ----------

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, Navigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
 import { Game } from '../types';
@@ -15,10 +15,6 @@ export default function DashboardPage() {
   const [joinError, setJoinError] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'my' | 'public' | 'invites'>('my');
-
-  if (!isAuthenticated || !user) {
-    return <Navigate to="/login" replace />;
-  }
 
   const myGames = getUserGames();
   const publicGames = getPublicGames().filter(g => !g.playerIds.includes(user.id));

@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { GameProvider } from './context/GameContext';
 import Layout from './components/layout/Layout';
+import ProtectedRoute from './components/common/ProtectedRoute';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
@@ -25,13 +26,13 @@ export default function App() {
               <Route path="/" element={<HomePage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/create-game" element={<CreateGamePage />} />
-              <Route path="/game/:gameId" element={<GamePlayPage />} />
-              <Route path="/game/:gameId/results" element={<GameResultsPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/leaderboard" element={<LeaderboardPage />} />
-              <Route path="/daily" element={<DailyLeaderboardPage />} />
+              <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+              <Route path="/create-game" element={<ProtectedRoute><CreateGamePage /></ProtectedRoute>} />
+              <Route path="/game/:gameId" element={<ProtectedRoute><GamePlayPage /></ProtectedRoute>} />
+              <Route path="/game/:gameId/results" element={<ProtectedRoute><GameResultsPage /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+              <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
+              <Route path="/daily" element={<ProtectedRoute><DailyLeaderboardPage /></ProtectedRoute>} />
             </Route>
           </Routes>
         </GameProvider>

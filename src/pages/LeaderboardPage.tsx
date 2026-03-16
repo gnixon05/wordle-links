@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LeaderboardEntry, HolePar } from '../types';
 import Avatar from '../components/common/Avatar';
@@ -71,10 +70,6 @@ export default function LeaderboardPage() {
 
     loadLeaderboard();
   }, [isAuthenticated, allUsers]);
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
 
   return (
     <div className="container py-4">

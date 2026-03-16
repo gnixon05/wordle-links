@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
 import { HoleConfig, HolePar, ThemeOption, GameVisibility, StartWordMode, WordMode } from '../types';
@@ -45,10 +45,6 @@ export default function CreateGamePage() {
   const [startWordThemeFront, setStartWordThemeFront] = useState<ThemeOption>('golf');
   const [startWordThemeBack, setStartWordThemeBack] = useState<ThemeOption>('golf');
   const [error, setError] = useState('');
-
-  if (!isAuthenticated || !user) {
-    return <Navigate to="/login" replace />;
-  }
 
   const otherUsers = allUsers.filter(u => u.id !== user.id);
 

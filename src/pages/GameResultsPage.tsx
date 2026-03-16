@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate, Navigate } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
 import { HolePar, RoundConfig, RoundResult } from '../types';
@@ -58,10 +58,6 @@ export default function GameResultsPage() {
     if (!gameId) return;
     isRoundCompleteForAllPlayers(gameId, roundNumber).then(setAllComplete);
   }, [gameId, roundNumber, isRoundCompleteForAllPlayers, playerResults]);
-
-  if (!isAuthenticated || !user) {
-    return <Navigate to="/login" replace />;
-  }
 
   if (!game) {
     return (

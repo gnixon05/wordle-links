@@ -10,7 +10,7 @@ import { getDisplayName, getScoreRelativeToPar, getScoreName } from '../utils/ga
 export default function GameResultsPage() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
-  const { user, isAuthenticated, allUsers } = useAuth();
+  const { user, allUsers } = useAuth();
   const { getGame, getUserResult, isRoundCompleteForAllPlayers, startNewRound } = useGame();
 
   const [selectedRound, setSelectedRound] = useState<number | null>(null);

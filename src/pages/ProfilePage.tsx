@@ -10,7 +10,7 @@ import WordleStatsImport from '../components/game/WordleStatsImport';
 import { apiGetGames } from '../utils/api';
 
 export default function ProfilePage() {
-  const { user, isAuthenticated, updateProfile, displayName } = useAuth();
+  const { user, updateProfile, displayName } = useAuth();
   const { getUserResults, getUserInvitations, acceptInvitation, declineInvitation, getUserGames } = useGame();
   const { theme, toggleTheme } = useTheme();
 
@@ -30,6 +30,8 @@ export default function ProfilePage() {
     getUserResults(user.id).then(setAllResults);
     apiGetGames().then(setAllGamesData);
   }, [user, getUserResults]);
+
+  if (!user) return null;
 
   const invitations = getUserInvitations();
   const myGames = getUserGames();

@@ -7,7 +7,7 @@ import Avatar from '../components/common/Avatar';
 import { getDisplayName } from '../utils/gameLogic';
 
 export default function DashboardPage() {
-  const { user, isAuthenticated, allUsers } = useAuth();
+  const { user, allUsers } = useAuth();
   const { getUserGames, getPublicGames, getUserInvitations, acceptInvitation, declineInvitation, joinGame, deleteGame } = useGame();
   const navigate = useNavigate();
   const [joinPassword, setJoinPassword] = useState('');
@@ -15,6 +15,8 @@ export default function DashboardPage() {
   const [joinError, setJoinError] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'my' | 'public' | 'invites'>('my');
+
+  if (!user) return null;
 
   const myGames = getUserGames();
   const publicGames = getPublicGames().filter(g => !g.playerIds.includes(user.id));

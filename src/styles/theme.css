@@ -333,6 +333,118 @@
   border-color: var(--wl-input-border) !important;
 }
 
+/* Word mode selector cards */
+.word-mode-option {
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.word-mode-option:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.word-mode-option.selected {
+  box-shadow: 0 0 0 2px rgba(82, 183, 136, 0.3);
+}
+
+/* Hole settings accordion cards */
+.hole-settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hole-settings-card {
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: box-shadow 0.15s;
+}
+
+.hole-settings-card.expanded {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.hole-settings-header {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: #f8f9fa;
+  cursor: pointer;
+  gap: 12px;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.hole-settings-header:hover {
+  background: #e9ecef;
+}
+
+.hole-settings-header-left {
+  display: flex;
+  align-items: center;
+  min-width: 80px;
+}
+
+.hole-number {
+  font-weight: 700;
+  color: var(--wl-green-dark);
+  font-size: 0.95rem;
+}
+
+.hole-settings-header-summary {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.hole-settings-chevron {
+  font-size: 0.8rem;
+  color: #6c757d;
+  transition: transform 0.2s;
+}
+
+.hole-settings-chevron.open {
+  transform: rotate(180deg);
+}
+
+.hole-settings-body {
+  padding: 12px 14px 16px;
+  border-top: 1px solid #dee2e6;
+  background: #fff;
+}
+
+/* Dark mode: hole settings */
+[data-theme="dark"] .hole-settings-card {
+  border-color: var(--wl-input-border);
+}
+
+[data-theme="dark"] .hole-settings-header {
+  background: #1a1a1a;
+}
+
+[data-theme="dark"] .hole-settings-header:hover {
+  background: #222;
+}
+
+[data-theme="dark"] .hole-number {
+  color: var(--wl-green-light);
+}
+
+[data-theme="dark"] .hole-settings-chevron {
+  color: var(--wl-muted-text);
+}
+
+[data-theme="dark"] .hole-settings-body {
+  background: var(--wl-card-bg);
+  border-top-color: var(--wl-input-border);
+}
+
+[data-theme="dark"] .word-mode-option.selected {
+  box-shadow: 0 0 0 2px rgba(82, 183, 136, 0.4);
+}
+
 /* Theme toggle button */
 .theme-toggle {
   background: none;

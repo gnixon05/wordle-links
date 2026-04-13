@@ -29,10 +29,10 @@ export interface AvatarChoice {
 export type HolePar = 3 | 4 | 5;
 
 export interface WordConstraints {
-  startsWith?: string;   // word must start with these letters (e.g. "TR")
-  endsWith?: string;     // word must end with these letters (e.g. "ED")
-  contains?: string;     // word must contain these letters anywhere (e.g. "AE")
-  letterPool?: string;   // word can only use letters from this pool (e.g. "ABCDEFGH")
+  startsWith?: string;   // start word must start with these letters (e.g. "TR")
+  endsWith?: string;     // start word must end with these letters (e.g. "ED")
+  contains?: string;     // start word must contain these letters anywhere (e.g. "AE")
+  letterPool?: string;   // start word can only use letters from this pool (e.g. "ABCDEFGH")
 }
 
 export interface HoleConfig {
@@ -40,7 +40,7 @@ export interface HoleConfig {
   par: HolePar;
   customWord?: string; // if manually specified (target word)
   customStartWord?: string; // if manually specified (forced first guess)
-  wordConstraints?: WordConstraints; // constraints for word selection
+  wordConstraints?: WordConstraints; // constraints for the start word (first guess rules)
 }
 
 export type GameVisibility = 'public' | 'private';

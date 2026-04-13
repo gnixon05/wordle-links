@@ -57,7 +57,7 @@ function HoleCard({
   const showStartWordInput = isFront
     ? startWordModeFront === 'custom'
     : startWordModeBack === 'custom';
-  const showConstraints = wordMode === 'custom' && !winnerPicksHidesConstraint && !hasCustomWord;
+  const showConstraints = !winnerPicksHidesConstraint && !hasCustomWord;
   const showCustomWord = wordMode === 'custom' && (!winnerPicks || isFirstOfNine);
 
   const nineLabel = hole.holeNumber === 1 ? 'Front 9' : hole.holeNumber === 10 ? 'Back 9' : '';
@@ -130,9 +130,9 @@ function HoleCard({
             )}
 
             {/* Winner picks placeholder */}
-            {wordMode === 'custom' && winnerPicksHidesConstraint && (
+            {winnerPicksHidesConstraint && (
               <div className="col-12">
-                <span className="text-muted small">Word set by previous hole's winner</span>
+                <span className="text-muted small">Start word rules set by previous hole's winner</span>
               </div>
             )}
 
@@ -141,7 +141,7 @@ function HoleCard({
               <>
                 <div className="col-12">
                   <hr className="my-1" />
-                  <label className="form-label small fw-semibold text-muted">Word Constraints (optional)</label>
+                  <label className="form-label small fw-semibold text-muted">Start Word Rules (optional)</label>
                 </div>
                 <div className="col-6 col-sm-3">
                   <label className="form-label small">Starts with</label>
@@ -277,14 +277,12 @@ export default function HoleSettingsPanel({
           {wordMode === 'classic' ? (
             <>
               All 18 holes are Par 4 (5-letter words, 6 guesses).
-              {(startWordModeFront === 'custom' || startWordModeBack === 'custom') && (
-                <> Click "Customize Holes" to enter custom start words.</>
-              )}
+              Click "Customize Holes" to set start word rules or custom start words per hole.
             </>
           ) : (
             <>
               All 18 holes default to Par 4 (5-letter words, 6 guesses).
-              Click "Customize Holes" to change par, set custom words, or add word constraints.
+              Click "Customize Holes" to change par, set custom words, or add start word rules.
               {winnerPicks && <> With "Winner Picks" on, only Hole 1 and 10 need initial settings &mdash; winners set the rest during play.</>}
               {(startWordModeFront === 'custom' || startWordModeBack === 'custom') && (
                 <> You must expand this section to enter custom start words.</>

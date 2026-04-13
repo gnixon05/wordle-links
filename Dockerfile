@@ -3,6 +3,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
+ENV NODE_OPTIONS="--max-old-space-size=512"
 RUN npx vite build
 
 FROM node:20-alpine

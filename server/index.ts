@@ -547,6 +547,144 @@ app.get('/api/wordle/:date.json', async (req, res) => {
   }
 });
 
+// ---------- Finalize Completed Games ----------
+
+/**
+ * Parse a date string (YYYY-MM-DD or ISO) to a local-midnight Date object (server-side version)
+ */
+function parseLocalDate(dateStr: string): Date {
+  const datePart = dateStr.split('T')[0];
+  const [year, month, day] = datePart.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function getTodayDateString(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function getHoleAvailableDate(startDate: string, holeNumber: number): Date {
+  const start = parseLocalDate(startDate);
+  start.setDate(start.getDate() + (holeNumber - 1));
+  return start;
+}
+
+function getMaxGuessesForPar(par: number): number {
+  switch (par) {
+    case 3: return 5;
+    case 4: return 6;
+    case 5: return 7;
+    default: return 6;
+  }
+}
+
+function calculateHoleScore(solved: boolean, guessCount: number, par: number): number {
+  if (solved) return guessCount;
+  return getMaxGuessesForPar(par) + 1;
+}
+
+app.post('/api/games/finalize-completed', (_req, res) => {
+  const today = parseLocalDate(getTodayDateString());
+  const todayTime = today.getTime();
+
+  // Find all active games
+  const activeGames = db.prepare("SELECT * FROM games WHERE status = 'active'").all() as Record<string, unknown>[];
+  const finalized: string[] = [];
+
+  for (const game of activeGames) {
+    const gameId = game.id as string;
+    const currentRound = game.current_round as number;
+
+    // Get the current round config
+    const roundRow = db.prepare('SELECT * FROM rounds WHERE game_id = ? AND round_number = ?')
+      .get(gameId, currentRound) as Record<string, unknown> | undefined;
+
+    if (!roundRow) continue;
+
+    const startDate = roundRow.start_date as string;
+    const holes: { holeNumber: number; par: number }[] = JSON.parse(roundRow.holes_json as string || '[]');
+
+    if (holes.length === 0) continue;
+
+    // Check if ALL holes are past (the last hole's date must be before today)
+    const lastHoleNumber = Math.max(...holes.map(h => h.holeNumber));
+    const lastHoleDate = getHoleAvailableDate(startDate, lastHoleNumber);
+    if (todayTime <= lastHoleDate.getTime()) continue; // Not all holes have expired yet
+
+    // All holes are past — finalize this game
+    // Get all players
+    const players = db.prepare('SELECT user_id FROM game_players WHERE game_id = ?')
+      .all(gameId) as { user_id: string }[];
+
+    // Get the words for this round
+    const wordsRow = db.prepare('SELECT words_json FROM game_words WHERE game_id = ? AND round_number = ?')
+      .get(gameId, currentRound) as { words_json: string } | undefined;
+    const words: string[] = wordsRow ? JSON.parse(wordsRow.words_json) : [];
+
+    // For each player, auto-score any missing holes
+    for (const player of players) {
+      const resultRow = db.prepare(
+        'SELECT * FROM round_results WHERE game_id = ? AND round_number = ? AND user_id = ?'
+      ).get(gameId, currentRound, player.user_id) as Record<string, unknown> | undefined;
+
+      let existingHoles: { holeNumber: number; guesses: unknown[]; targetWord: string; solved: boolean; score: number }[] = [];
+      let totalScore = 0;
+
+      if (resultRow) {
+        existingHoles = JSON.parse(resultRow.holes_json as string || '[]');
+        totalScore = resultRow.total_score as number;
+
+        // If already completed, skip
+        if (resultRow.completed_at) continue;
+      }
+
+      const playedHoles = new Set(existingHoles.map(h => h.holeNumber));
+      let scored = false;
+
+      for (const hole of holes) {
+        if (playedHoles.has(hole.holeNumber)) continue;
+
+        // This hole was missed — auto-DNF
+        const maxGuesses = getMaxGuessesForPar(hole.par);
+        const dnfScore = calculateHoleScore(false, maxGuesses, hole.par);
+        const targetWord = words[hole.holeNumber - 1] || 'XXXXX';
+
+        existingHoles.push({
+          holeNumber: hole.holeNumber,
+          guesses: [],
+          targetWord,
+          solved: false,
+          score: dnfScore,
+        });
+        scored = true;
+      }
+
+      // Sort holes and recalculate total
+      existingHoles.sort((a, b) => a.holeNumber - b.holeNumber);
+      totalScore = existingHoles.reduce((sum, h) => sum + h.score, 0);
+
+      const completedAt = new Date().toISOString();
+
+      // Save the finalized result
+      db.prepare(
+        `INSERT OR REPLACE INTO round_results (game_id, round_number, user_id, holes_json, total_score, completed_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      ).run(gameId, currentRound, player.user_id, JSON.stringify(existingHoles), totalScore, completedAt);
+
+      if (scored) {
+        console.log(`[Finalize] Auto-scored DNF holes for player ${player.user_id} in game ${gameId}`);
+      }
+    }
+
+    // Mark game as completed
+    db.prepare("UPDATE games SET status = 'completed' WHERE id = ?").run(gameId);
+    finalized.push(gameId);
+    console.log(`[Finalize] Game ${gameId} (${game.name}) marked as completed`);
+  }
+
+  res.json({ finalized, count: finalized.length });
+});
+
 // ---------- Helpers ----------
 
 function formatUser(row: Record<string, string>) {
@@ -590,6 +728,7 @@ function formatGame(row: Record<string, unknown>) {
     playerIds: players.map(p => p.user_id),
     rounds: rounds.map(formatRound),
     currentRound: row.current_round,
+    status: row.status || 'active',
     createdAt: row.created_at,
   };
 }

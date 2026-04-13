@@ -15,6 +15,7 @@ import {
   apiGetGameResults,
   apiGetUserResults,
   apiGetUserResult,
+  apiFinalizeCompletedGames,
 } from '../utils/api';
 import { generateRoundWords, pickStartWord, pickWordForHole, getHoleAvailability, calculateHoleScore, getMaxGuessesForPar } from '../utils/gameLogic';
 import { useAuth } from './AuthContext';
@@ -75,7 +76,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refreshGames();
+    // On initial load, finalize any completed games then refresh the list
+    apiFinalizeCompletedGames()
+      .then(({ count }) => {
+        if (count > 0) {
+          console.log(`[GameContext] Finalized ${count} completed game(s)`);
+        }
+      })
+      .catch(() => { /* ignore errors */ })
+      .finally(() => refreshGames());
   }, [refreshGames]);
 
   const createGame = useCallback((data: CreateGameData): Game => {
@@ -110,6 +119,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         winnerPicks: data.roundConfig.winnerPicks,
       }],
       currentRound: 1,
+      status: 'active',
       createdAt: new Date().toISOString(),
     };
 

@@ -45,6 +45,8 @@ export interface HoleConfig {
 
 export type GameVisibility = 'public' | 'private';
 
+export type GameStatus = 'active' | 'completed';
+
 export type ThemeOption = 'golf' | 'sports' | 'nature' | 'food' | 'animals' | 'random' | 'custom';
 
 export type StartWordMode = 'theme' | 'custom' | 'none';
@@ -77,6 +79,7 @@ export interface Game {
   playerIds: string[];
   rounds: RoundConfig[];
   currentRound: number;
+  status: GameStatus;
   createdAt: string;
 }
 

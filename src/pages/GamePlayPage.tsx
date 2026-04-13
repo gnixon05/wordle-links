@@ -32,7 +32,7 @@ export default function GamePlayPage() {
   const {
     getGame, getWordsForRound, getStartWordsForRound, updateWordForHole,
     submitHoleResult, getUserResult, isRoundCompleteForAllPlayers,
-    updateHoleConstraints,
+    autoScoreMissedHoles, updateHoleConstraints,
   } = useGame();
 
   const [currentHole, setCurrentHole] = useState(1);
@@ -85,6 +85,16 @@ export default function GamePlayPage() {
   useEffect(() => {
     loadUserResult();
   }, [loadUserResult]);
+
+  // Auto-score any missed/expired holes with DNF
+  const hasAutoScored = useRef(false);
+  useEffect(() => {
+    if (!gameId || !user || !round || hasAutoScored.current) return;
+    hasAutoScored.current = true;
+    autoScoreMissedHoles(gameId, roundNumber).then(didScore => {
+      if (didScore) loadUserResult(); // reload to pick up auto-scored holes
+    });
+  }, [gameId, user, round, roundNumber, autoScoreMissedHoles, loadUserResult]);
 
   // Check if all players complete
   useEffect(() => {

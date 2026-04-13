@@ -66,29 +66,27 @@ export default function CreateGamePage() {
                   onBackThemeChange={form.setStartWordThemeBack}
                 />
 
-                {/* Winner Picks Rule - only for custom mode */}
-                {form.wordMode === 'custom' && (
-                  <div className="mb-3 p-3 border rounded config-panel">
-                    <div className="form-check form-switch">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id="winnerPicks"
-                        checked={form.winnerPicks}
-                        onChange={e => form.setWinnerPicks(e.target.checked)}
-                      />
-                      <label className="form-check-label fw-semibold" htmlFor="winnerPicks">
-                        Winner Picks Next Hole Rule
-                      </label>
-                    </div>
-                    <div className="form-text mt-1">
-                      When enabled, the winner of each hole sets the word rule for the next hole.
-                      You only need to set the starting rule for Hole 1 (and Hole 10 for back 9).
-                      The winner chooses from the same options available for the front/back 9
-                      (category, constraints, or custom word).
-                    </div>
+                {/* Winner Picks Rule */}
+                <div className="mb-3 p-3 border rounded config-panel">
+                  <div className="form-check form-switch">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="winnerPicks"
+                      checked={form.winnerPicks}
+                      onChange={e => form.setWinnerPicks(e.target.checked)}
+                    />
+                    <label className="form-check-label fw-semibold" htmlFor="winnerPicks">
+                      Winner Picks Next Hole Rule
+                    </label>
                   </div>
-                )}
+                  <div className="form-text mt-1">
+                    When enabled, the winner of each hole sets the word rule for the next hole.
+                    You only need to set the starting rule for Hole 1 (and Hole 10 for back 9).
+                    The winner chooses from the same options available for the front/back 9
+                    (category, constraints, or custom word).
+                  </div>
+                </div>
 
                 <HoleSettingsPanel
                   holes={form.holes}

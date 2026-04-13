@@ -16,7 +16,7 @@ import {
   apiGetUserResults,
   apiGetUserResult,
 } from '../utils/api';
-import { generateRoundWords, pickStartWord, pickWordForHole } from '../utils/gameLogic';
+import { generateRoundWords, pickStartWord, pickWordForHole, getHoleAvailability, calculateHoleScore, getMaxGuessesForPar } from '../utils/gameLogic';
 import { useAuth } from './AuthContext';
 
 interface CreateGameData {
@@ -54,6 +54,7 @@ interface GameContextType {
   getGameResults: (gameId: string) => Promise<RoundResult[]>;
   getUserResults: (userId: string) => Promise<RoundResult[]>;
   isRoundCompleteForAllPlayers: (gameId: string, roundNumber: number) => Promise<boolean>;
+  autoScoreMissedHoles: (gameId: string, roundNumber: number) => Promise<boolean>;
   updateHoleConstraints: (gameId: string, roundNumber: number, holeNumber: number, constraints: WordConstraints) => Promise<void>;
   startNewRound: (gameId: string, roundConfig: RoundConfig) => void;
   acceptInvitation: (gameId: string) => void;
@@ -255,6 +256,75 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  /**
+   * Auto-score any missed (expired/past) holes for the current user.
+   * Submits DNF results for past holes the player never played.
+   * Returns true if any holes were auto-scored.
+   */
+  const autoScoreMissedHoles = useCallback(async (gameId: string, roundNumber: number): Promise<boolean> => {
+    if (!user) return false;
+
+    const game = await apiGetGame(gameId);
+    if (!game) return false;
+
+    const round = game.rounds.find(r => r.roundNumber === roundNumber);
+    if (!round) return false;
+
+    let existing = await apiGetUserResult(gameId, roundNumber, user.id);
+    if (!existing) {
+      existing = {
+        roundNumber,
+        userId: user.id,
+        gameId,
+        holes: [],
+        totalScore: 0,
+      };
+    }
+
+    // Already completed the round
+    if (existing.completedAt) return false;
+
+    const words = await apiGetGameWords(gameId, roundNumber);
+    let scored = false;
+
+    for (const hole of round.holes) {
+      const alreadyPlayed = existing.holes.some(h => h.holeNumber === hole.holeNumber);
+      if (alreadyPlayed) continue;
+
+      const availability = getHoleAvailability(round.startDate, hole.holeNumber);
+      if (availability !== 'past') continue;
+
+      // This hole has expired and the player never played it — auto-DNF
+      const maxGuesses = getMaxGuessesForPar(hole.par);
+      const dnfScore = calculateHoleScore(false, maxGuesses, hole.par);
+      const targetWord = words[hole.holeNumber - 1] || 'XXXXX';
+
+      const dnfResult: HoleResult = {
+        holeNumber: hole.holeNumber,
+        guesses: [], // no guesses made
+        targetWord,
+        solved: false,
+        score: dnfScore,
+      };
+
+      existing.holes.push(dnfResult);
+      scored = true;
+    }
+
+    if (!scored) return false;
+
+    existing.holes.sort((a, b) => a.holeNumber - b.holeNumber);
+    existing.totalScore = existing.holes.reduce((sum, h) => sum + h.score, 0);
+
+    // Check if round is now complete
+    if (existing.holes.length === round.holes.length) {
+      existing.completedAt = new Date().toISOString();
+    }
+
+    await apiSaveResult(existing);
+    return true;
+  }, [user]);
+
   const updateHoleConstraints = useCallback(async (
     gameId: string, roundNumber: number, holeNumber: number, constraints: WordConstraints
   ) => {
@@ -410,6 +480,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       getGameResults,
       getUserResults,
       isRoundCompleteForAllPlayers,
+      autoScoreMissedHoles,
       updateHoleConstraints,
       startNewRound,
       acceptInvitation,

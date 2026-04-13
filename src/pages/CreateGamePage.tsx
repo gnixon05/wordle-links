@@ -481,9 +481,10 @@ export default function CreateGamePage() {
                       </label>
                     </div>
                     <div className="form-text mt-1">
-                      When enabled, the winner of each hole can set a word constraint (starts with, ends with,
-                      contains letters, or letter pool) for the next hole. The next hole won't start until
-                      the winner selects a rule. Initial constraints can be set per-hole below.
+                      When enabled, the winner of each hole sets the word rule for the next hole.
+                      You only need to set the starting rule for Hole 1 (and Hole 10 for back 9).
+                      The winner chooses from the same options available for the front/back 9
+                      (category, constraints, or custom word).
                     </div>
                   </div>
                 )}
@@ -500,7 +501,13 @@ export default function CreateGamePage() {
                   </button>
                 </div>
 
-                {showAdvanced && (
+                {showAdvanced && (() => {
+                  // Determine if constraint columns should show at all:
+                  // Only in custom mode, and only if at least one hole could use them
+                  const showConstraintCols = wordMode === 'custom';
+                  const showStartWordCol = startWordModeFront === 'custom' || startWordModeBack === 'custom';
+
+                  return (
                   <div className="table-responsive">
                     <table className="table table-sm">
                       <thead>
@@ -510,17 +517,29 @@ export default function CreateGamePage() {
                           <th>Word Length</th>
                           <th>Guesses</th>
                           {wordMode === 'custom' && <th>Custom Word</th>}
-                          {(startWordModeFront === 'custom' || startWordModeBack === 'custom') && <th>Start Word</th>}
-                          {wordMode === 'custom' && <th>Starts With</th>}
-                          {wordMode === 'custom' && <th>Ends With</th>}
-                          {wordMode === 'custom' && <th>Contains</th>}
-                          {wordMode === 'custom' && <th>Letter Pool</th>}
+                          {showStartWordCol && <th>Start Word</th>}
+                          {showConstraintCols && <th>Starts With</th>}
+                          {showConstraintCols && <th>Ends With</th>}
+                          {showConstraintCols && <th>Contains</th>}
+                          {showConstraintCols && <th>Letter Pool</th>}
                         </tr>
                       </thead>
                       <tbody>
                         {holes.map(hole => {
                           const wordLen = hole.par === 3 ? 4 : hole.par === 5 ? 6 : 5;
                           const guesses = hole.par === 3 ? 5 : hole.par === 5 ? 7 : 6;
+
+                          // When winner picks is on, only show constraint inputs for
+                          // the first hole of each nine (hole 1 and hole 10)
+                          const isFirstOfNine = hole.holeNumber === 1 || hole.holeNumber === 10;
+                          const winnerPicksHidesConstraint = winnerPicks && !isFirstOfNine;
+
+                          // Hide constraints if hole has a custom word set (word already chosen)
+                          const hasCustomWord = !!hole.customWord;
+
+                          // Show constraint inputs for this row?
+                          const showConstraintInputs = showConstraintCols && !winnerPicksHidesConstraint && !hasCustomWord;
+
                           return (
                             <tr key={hole.holeNumber} className={hole.holeNumber === 10 ? 'table-secondary' : ''}>
                               <td className="fw-semibold">
@@ -545,18 +564,23 @@ export default function CreateGamePage() {
                               <td>{guesses}</td>
                               {wordMode === 'custom' && (
                                 <td>
-                                  <input
-                                    type="text"
-                                    className="form-control form-control-sm"
-                                    style={{ width: '100px' }}
-                                    maxLength={wordLen}
-                                    value={hole.customWord || ''}
-                                    onChange={e => updateHoleWord(hole.holeNumber, e.target.value)}
-                                    placeholder="Optional"
-                                  />
+                                  {/* When winner picks, only hole 1 and 10 get custom word input */}
+                                  {(!winnerPicks || isFirstOfNine) ? (
+                                    <input
+                                      type="text"
+                                      className="form-control form-control-sm"
+                                      style={{ width: '100px' }}
+                                      maxLength={wordLen}
+                                      value={hole.customWord || ''}
+                                      onChange={e => updateHoleWord(hole.holeNumber, e.target.value)}
+                                      placeholder="Optional"
+                                    />
+                                  ) : (
+                                    <span className="text-muted small" title="Set by winner">Winner</span>
+                                  )}
                                 </td>
                               )}
-                              {(startWordModeFront === 'custom' || startWordModeBack === 'custom') && (
+                              {showStartWordCol && (
                                 <td>
                                   {((hole.holeNumber <= 9 && startWordModeFront === 'custom') ||
                                     (hole.holeNumber > 9 && startWordModeBack === 'custom')) ? (
@@ -574,56 +598,72 @@ export default function CreateGamePage() {
                                   )}
                                 </td>
                               )}
-                              {wordMode === 'custom' && (
+                              {showConstraintCols && (
                                 <td>
-                                  <input
-                                    type="text"
-                                    className="form-control form-control-sm"
-                                    style={{ width: '80px' }}
-                                    maxLength={wordLen - 1}
-                                    value={hole.wordConstraints?.startsWith || ''}
-                                    onChange={e => updateHoleConstraint(hole.holeNumber, 'startsWith', e.target.value)}
-                                    placeholder="e.g. TR"
-                                  />
+                                  {showConstraintInputs ? (
+                                    <input
+                                      type="text"
+                                      className="form-control form-control-sm"
+                                      style={{ width: '80px' }}
+                                      maxLength={wordLen - 1}
+                                      value={hole.wordConstraints?.startsWith || ''}
+                                      onChange={e => updateHoleConstraint(hole.holeNumber, 'startsWith', e.target.value)}
+                                      placeholder="e.g. TR"
+                                    />
+                                  ) : (
+                                    <span className="text-muted small">{winnerPicksHidesConstraint ? 'Winner' : '-'}</span>
+                                  )}
                                 </td>
                               )}
-                              {wordMode === 'custom' && (
+                              {showConstraintCols && (
                                 <td>
-                                  <input
-                                    type="text"
-                                    className="form-control form-control-sm"
-                                    style={{ width: '80px' }}
-                                    maxLength={wordLen - 1}
-                                    value={hole.wordConstraints?.endsWith || ''}
-                                    onChange={e => updateHoleConstraint(hole.holeNumber, 'endsWith', e.target.value)}
-                                    placeholder="e.g. ED"
-                                  />
+                                  {showConstraintInputs ? (
+                                    <input
+                                      type="text"
+                                      className="form-control form-control-sm"
+                                      style={{ width: '80px' }}
+                                      maxLength={wordLen - 1}
+                                      value={hole.wordConstraints?.endsWith || ''}
+                                      onChange={e => updateHoleConstraint(hole.holeNumber, 'endsWith', e.target.value)}
+                                      placeholder="e.g. ED"
+                                    />
+                                  ) : (
+                                    <span className="text-muted small">{winnerPicksHidesConstraint ? 'Winner' : '-'}</span>
+                                  )}
                                 </td>
                               )}
-                              {wordMode === 'custom' && (
+                              {showConstraintCols && (
                                 <td>
-                                  <input
-                                    type="text"
-                                    className="form-control form-control-sm"
-                                    style={{ width: '80px' }}
-                                    maxLength={wordLen}
-                                    value={hole.wordConstraints?.contains || ''}
-                                    onChange={e => updateHoleConstraint(hole.holeNumber, 'contains', e.target.value)}
-                                    placeholder="e.g. AE"
-                                  />
+                                  {showConstraintInputs ? (
+                                    <input
+                                      type="text"
+                                      className="form-control form-control-sm"
+                                      style={{ width: '80px' }}
+                                      maxLength={wordLen}
+                                      value={hole.wordConstraints?.contains || ''}
+                                      onChange={e => updateHoleConstraint(hole.holeNumber, 'contains', e.target.value)}
+                                      placeholder="e.g. AE"
+                                    />
+                                  ) : (
+                                    <span className="text-muted small">{winnerPicksHidesConstraint ? 'Winner' : '-'}</span>
+                                  )}
                                 </td>
                               )}
-                              {wordMode === 'custom' && (
+                              {showConstraintCols && (
                                 <td>
-                                  <input
-                                    type="text"
-                                    className="form-control form-control-sm"
-                                    style={{ width: '120px' }}
-                                    maxLength={26}
-                                    value={hole.wordConstraints?.letterPool || ''}
-                                    onChange={e => updateHoleConstraint(hole.holeNumber, 'letterPool', e.target.value)}
-                                    placeholder="e.g. ABCDEF"
-                                  />
+                                  {showConstraintInputs ? (
+                                    <input
+                                      type="text"
+                                      className="form-control form-control-sm"
+                                      style={{ width: '120px' }}
+                                      maxLength={26}
+                                      value={hole.wordConstraints?.letterPool || ''}
+                                      onChange={e => updateHoleConstraint(hole.holeNumber, 'letterPool', e.target.value)}
+                                      placeholder="e.g. ABCDEF"
+                                    />
+                                  ) : (
+                                    <span className="text-muted small">{winnerPicksHidesConstraint ? 'Winner' : '-'}</span>
+                                  )}
                                 </td>
                               )}
                             </tr>
@@ -632,7 +672,8 @@ export default function CreateGamePage() {
                       </tbody>
                     </table>
                   </div>
-                )}
+                  );
+                })()}
 
                 {!showAdvanced && (
                   <div className="alert alert-info small mb-0">
@@ -646,8 +687,8 @@ export default function CreateGamePage() {
                     ) : (
                       <>
                         All 18 holes default to Par 4 (5-letter words, 6 guesses).
-                        Click "Customize Holes" to change par, set custom words, or add word constraints
-                        (starts with, ends with, contains, letter pool) for specific holes.
+                        Click "Customize Holes" to change par, set custom words, or add word constraints.
+                        {winnerPicks && <> With "Winner Picks" on, only Hole 1 and 10 need initial settings &mdash; winners set the rest during play.</>}
                         {(startWordModeFront === 'custom' || startWordModeBack === 'custom') && (
                           <> You must expand this section to enter custom start words.</>
                         )}

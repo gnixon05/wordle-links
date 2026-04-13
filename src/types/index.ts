@@ -28,11 +28,19 @@ export interface AvatarChoice {
 
 export type HolePar = 3 | 4 | 5;
 
+export interface WordConstraints {
+  startsWith?: string;   // word must start with these letters (e.g. "TR")
+  endsWith?: string;     // word must end with these letters (e.g. "ED")
+  contains?: string;     // word must contain these letters anywhere (e.g. "AE")
+  letterPool?: string;   // word can only use letters from this pool (e.g. "ABCDEFGH")
+}
+
 export interface HoleConfig {
   holeNumber: number; // 1-18
   par: HolePar;
   customWord?: string; // if manually specified (target word)
   customStartWord?: string; // if manually specified (forced first guess)
+  wordConstraints?: WordConstraints; // constraints for word selection
 }
 
 export type GameVisibility = 'public' | 'private';
@@ -56,6 +64,7 @@ export interface RoundConfig {
   startWordModeBack?: StartWordMode; // how first guess is determined for back 9
   startWordThemeFront?: ThemeOption; // theme for front 9 start words (if mode is 'theme')
   startWordThemeBack?: ThemeOption; // theme for back 9 start words (if mode is 'theme')
+  winnerPicks?: boolean; // if true, the winner of each hole sets the constraint for the next hole
 }
 
 export interface Game {

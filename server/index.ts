@@ -228,8 +228,8 @@ app.post('/api/games', requireAuth, (req, res) => {
   if (game.rounds?.length) {
     const insertRound = db.prepare(
       `INSERT INTO rounds (game_id, round_number, holes_json, word_mode, front_nine_theme, back_nine_theme, start_date,
-       start_word_mode_front, start_word_mode_back, start_word_theme_front, start_word_theme_back)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       start_word_mode_front, start_word_mode_back, start_word_theme_front, start_word_theme_back, winner_picks)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     for (const round of game.rounds) {
       insertRound.run(
@@ -237,7 +237,8 @@ app.post('/api/games', requireAuth, (req, res) => {
         round.wordMode || 'custom',
         round.frontNineTheme || null, round.backNineTheme || null, round.startDate,
         round.startWordModeFront || null, round.startWordModeBack || null,
-        round.startWordThemeFront || null, round.startWordThemeBack || null
+        round.startWordThemeFront || null, round.startWordThemeBack || null,
+        round.winnerPicks ? 1 : 0
       );
     }
   }
@@ -505,27 +506,44 @@ app.get('/api/wordle/:date.json', async (req, res) => {
   }
 
   const nytUrl = `https://www.nytimes.com/svc/wordle/v2/${dateStr}.json`;
+  const maxRetries = 2;
 
-  try {
-    const response = await fetch(nytUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json',
-        'Referer': 'https://www.nytimes.com/games/wordle/index.html',
-      },
-    });
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    if (!response.ok) {
-      console.warn(`[Wordle Proxy] NYT responded ${response.status} for ${dateStr}`);
-      res.status(response.status).json({ error: `NYT API returned ${response.status}` });
+      const response = await fetch(nytUrl, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json',
+          'Referer': 'https://www.nytimes.com/games/wordle/index.html',
+        },
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        console.warn(`[Wordle Proxy] NYT responded ${response.status} for ${dateStr} (attempt ${attempt + 1})`);
+        if (attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+        res.status(response.status).json({ error: `NYT API returned ${response.status}` });
+        return;
+      }
+
+      const data = await response.json();
+      res.json(data);
       return;
+    } catch (err) {
+      console.error(`[Wordle Proxy] Error fetching ${dateStr} (attempt ${attempt + 1}):`, err);
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      res.status(502).json({ error: 'Failed to fetch from NYT API after retries' });
     }
-
-    const data = await response.json();
-    res.json(data);
-  } catch (err) {
-    console.error(`[Wordle Proxy] Error fetching ${dateStr}:`, err);
-    res.status(502).json({ error: 'Failed to fetch from NYT API' });
   }
 });
 
@@ -591,6 +609,7 @@ function formatRound(row: Record<string, unknown>) {
     startWordModeBack: row.start_word_mode_back || undefined,
     startWordThemeFront: row.start_word_theme_front || undefined,
     startWordThemeBack: row.start_word_theme_back || undefined,
+    winnerPicks: row.winner_picks ? true : undefined,
   };
 }
 

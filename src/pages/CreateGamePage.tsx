@@ -2,7 +2,7 @@ import { useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
-import { HoleConfig, HolePar, ThemeOption, GameVisibility, StartWordMode, WordMode } from '../types';
+import { HoleConfig, HolePar, ThemeOption, GameVisibility, StartWordMode, WordMode, WordConstraints } from '../types';
 import { getDisplayName } from '../utils/gameLogic';
 
 const THEME_OPTIONS: { value: ThemeOption; label: string }[] = [
@@ -44,6 +44,7 @@ export default function CreateGamePage() {
   const [startWordModeBack, setStartWordModeBack] = useState<StartWordMode>('none');
   const [startWordThemeFront, setStartWordThemeFront] = useState<ThemeOption>('golf');
   const [startWordThemeBack, setStartWordThemeBack] = useState<ThemeOption>('golf');
+  const [winnerPicks, setWinnerPicks] = useState(false);
   const [error, setError] = useState('');
 
   if (!user) return null;
@@ -81,6 +82,20 @@ export default function CreateGamePage() {
     setHoles(prev => prev.map(h =>
       h.holeNumber === holeNumber ? { ...h, customStartWord: word.toUpperCase() || undefined } : h
     ));
+  };
+
+  const updateHoleConstraint = (holeNumber: number, field: keyof WordConstraints, value: string) => {
+    setHoles(prev => prev.map(h => {
+      if (h.holeNumber !== holeNumber) return h;
+      const constraints: WordConstraints = { ...(h.wordConstraints || {}) };
+      if (value) {
+        constraints[field] = value.toUpperCase();
+      } else {
+        delete constraints[field];
+      }
+      const hasAny = Object.keys(constraints).length > 0;
+      return { ...h, wordConstraints: hasAny ? constraints : undefined };
+    }));
   };
 
   const handleSubmit = (e: FormEvent) => {
@@ -134,6 +149,7 @@ export default function CreateGamePage() {
         startWordModeBack,
         startWordThemeFront: startWordModeFront === 'theme' ? startWordThemeFront : undefined,
         startWordThemeBack: startWordModeBack === 'theme' ? startWordThemeBack : undefined,
+        winnerPicks: winnerPicks || undefined,
       },
     });
 
@@ -449,6 +465,29 @@ export default function CreateGamePage() {
                   </div>
                 </div>
 
+                {/* Winner Picks Rule - only for custom mode */}
+                {wordMode === 'custom' && (
+                  <div className="mb-3 p-3 border rounded config-panel">
+                    <div className="form-check form-switch">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="winnerPicks"
+                        checked={winnerPicks}
+                        onChange={e => setWinnerPicks(e.target.checked)}
+                      />
+                      <label className="form-check-label fw-semibold" htmlFor="winnerPicks">
+                        Winner Picks Next Hole Rule
+                      </label>
+                    </div>
+                    <div className="form-text mt-1">
+                      When enabled, the winner of each hole can set a word constraint (starts with, ends with,
+                      contains letters, or letter pool) for the next hole. The next hole won't start until
+                      the winner selects a rule. Initial constraints can be set per-hole below.
+                    </div>
+                  </div>
+                )}
+
                 {/* Per-Hole Settings - available for both modes */}
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <label className="form-label fw-semibold mb-0">Per-Hole Settings</label>
@@ -472,6 +511,10 @@ export default function CreateGamePage() {
                           <th>Guesses</th>
                           {wordMode === 'custom' && <th>Custom Word</th>}
                           {(startWordModeFront === 'custom' || startWordModeBack === 'custom') && <th>Start Word</th>}
+                          {wordMode === 'custom' && <th>Starts With</th>}
+                          {wordMode === 'custom' && <th>Ends With</th>}
+                          {wordMode === 'custom' && <th>Contains</th>}
+                          {wordMode === 'custom' && <th>Letter Pool</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -531,6 +574,58 @@ export default function CreateGamePage() {
                                   )}
                                 </td>
                               )}
+                              {wordMode === 'custom' && (
+                                <td>
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    style={{ width: '80px' }}
+                                    maxLength={wordLen - 1}
+                                    value={hole.wordConstraints?.startsWith || ''}
+                                    onChange={e => updateHoleConstraint(hole.holeNumber, 'startsWith', e.target.value)}
+                                    placeholder="e.g. TR"
+                                  />
+                                </td>
+                              )}
+                              {wordMode === 'custom' && (
+                                <td>
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    style={{ width: '80px' }}
+                                    maxLength={wordLen - 1}
+                                    value={hole.wordConstraints?.endsWith || ''}
+                                    onChange={e => updateHoleConstraint(hole.holeNumber, 'endsWith', e.target.value)}
+                                    placeholder="e.g. ED"
+                                  />
+                                </td>
+                              )}
+                              {wordMode === 'custom' && (
+                                <td>
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    style={{ width: '80px' }}
+                                    maxLength={wordLen}
+                                    value={hole.wordConstraints?.contains || ''}
+                                    onChange={e => updateHoleConstraint(hole.holeNumber, 'contains', e.target.value)}
+                                    placeholder="e.g. AE"
+                                  />
+                                </td>
+                              )}
+                              {wordMode === 'custom' && (
+                                <td>
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    style={{ width: '120px' }}
+                                    maxLength={26}
+                                    value={hole.wordConstraints?.letterPool || ''}
+                                    onChange={e => updateHoleConstraint(hole.holeNumber, 'letterPool', e.target.value)}
+                                    placeholder="e.g. ABCDEF"
+                                  />
+                                </td>
+                              )}
                             </tr>
                           );
                         })}
@@ -551,8 +646,8 @@ export default function CreateGamePage() {
                     ) : (
                       <>
                         All 18 holes default to Par 4 (5-letter words, 6 guesses).
-                        Click "Customize Holes" to change individual holes to Par 3 or Par 5,
-                        or to set custom target words for specific holes.
+                        Click "Customize Holes" to change par, set custom words, or add word constraints
+                        (starts with, ends with, contains, letter pool) for specific holes.
                         {(startWordModeFront === 'custom' || startWordModeBack === 'custom') && (
                           <> You must expand this section to enter custom start words.</>
                         )}

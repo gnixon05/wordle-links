@@ -115,6 +115,12 @@ export function initializeDatabase(): void {
     CREATE INDEX IF NOT EXISTS idx_round_results_user_id ON round_results(user_id);
     CREATE INDEX IF NOT EXISTS idx_round_results_game_id ON round_results(game_id);
   `);
+
+  // Migration: add winner_picks column to rounds if it doesn't exist
+  const roundColumns = db.pragma('table_info(rounds)') as { name: string }[];
+  if (!roundColumns.some(c => c.name === 'winner_picks')) {
+    db.exec(`ALTER TABLE rounds ADD COLUMN winner_picks INTEGER NOT NULL DEFAULT 0`);
+  }
 }
 
 export default db;

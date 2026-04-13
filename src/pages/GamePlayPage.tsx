@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
-import { GuessRow, HoleResult, HolePar } from '../types';
+import { GuessRow, HoleResult, HolePar, WordConstraints } from '../types';
 import WordleBoard from '../components/game/WordleBoard';
 import Keyboard from '../components/game/Keyboard';
 import HoleNavigator from '../components/game/HoleNavigator';
@@ -14,6 +14,7 @@ import {
   calculateHoleScore,
   getScoreName,
   getScoreRelativeToPar,
+  calculateRoundScoreRelativeToPar,
   buildKeyboardState,
   isGuessCorrect,
   isValidWord,
@@ -22,6 +23,7 @@ import {
   formatHoleDate,
   getHoleAvailableDate,
   fetchDailyWordleWord,
+  generateFallbackClassicWord,
 } from '../utils/gameLogic';
 
 export default function GamePlayPage() {
@@ -30,6 +32,7 @@ export default function GamePlayPage() {
   const {
     getGame, getWordsForRound, getStartWordsForRound, updateWordForHole,
     submitHoleResult, getUserResult, isRoundCompleteForAllPlayers,
+    updateHoleConstraints,
   } = useGame();
 
   const [currentHole, setCurrentHole] = useState(1);
@@ -50,6 +53,13 @@ export default function GamePlayPage() {
   const [completedHoles, setCompletedHoles] = useState<HoleResult[]>([]);
   const [userResultCompletedAt, setUserResultCompletedAt] = useState<string | undefined>();
   const [allComplete, setAllComplete] = useState(false);
+
+  // Winner picks state
+  const [wpStartsWith, setWpStartsWith] = useState('');
+  const [wpEndsWith, setWpEndsWith] = useState('');
+  const [wpContains, setWpContains] = useState('');
+  const [wpLetterPool, setWpLetterPool] = useState('');
+  const [wpSubmitted, setWpSubmitted] = useState<Record<number, boolean>>({});
 
   const game = gameId ? getGame(gameId) : undefined;
   const roundNumber = game?.currentRound || 1;
@@ -119,7 +129,12 @@ export default function GamePlayPage() {
         setFetchedWords(prev => ({ ...prev, [currentHole]: word }));
         updateWordForHole(gameId, roundNumber, currentHole - 1, word);
       } else {
-        setFetchFailed(true);
+        // Use deterministic fallback so all players still get the same word
+        console.warn(`[Wordle] Using fallback word for ${dateStr}`);
+        const fallback = generateFallbackClassicWord(dateStr);
+        setFetchedWords(prev => ({ ...prev, [currentHole]: fallback }));
+        updateWordForHole(gameId, roundNumber, currentHole - 1, fallback);
+        setFetchFailed(true); // still show the warning, but game continues
       }
       setFetchingWord(false);
     });
@@ -132,7 +147,7 @@ export default function GamePlayPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isClassicMode, gameId, startDate, currentHole, targetWord, isHoleLocked]);
 
-  // Auto-navigate to today's hole on mount
+  // Auto-navigate to today's hole on mount (or last played hole if round is done)
   const hasAutoNavigated = useRef(false);
   useEffect(() => {
     if (round && !hasAutoNavigated.current) {
@@ -140,9 +155,13 @@ export default function GamePlayPage() {
       const todaysHole = getTodaysHoleNumber(startDate, round.holes.length);
       if (todaysHole !== null) {
         setCurrentHole(todaysHole);
+      } else if (completedHoles.length > 0) {
+        // All holes are past/locked — show the last completed hole
+        const lastCompleted = [...completedHoles].sort((a, b) => b.holeNumber - a.holeNumber)[0];
+        setCurrentHole(lastCompleted.holeNumber);
       }
     }
-  }, [round, startDate]);
+  }, [round, startDate, completedHoles]);
 
   // Load existing result for current hole
   useEffect(() => {
@@ -319,6 +338,50 @@ export default function GamePlayPage() {
       getHoleAvailability(startDate, h.holeNumber) === 'available'
   );
 
+  // Winner picks: check if this user won the current hole and can set constraints for next
+  const isWinnerPicks = round.winnerPicks === true;
+  const nextHoleNumber = currentHole < round.holes.length ? currentHole + 1 : null;
+  const currentUserWonHole = currentHoleResult?.solved && currentHoleResult.score === Math.min(
+    ...(completedHoles.filter(h => h.holeNumber === currentHole).map(h => h.score))
+  );
+  const showWinnerPicksForm = isWinnerPicks && currentUserWonHole && nextHoleNumber &&
+    !wpSubmitted[currentHole] && gameOver;
+
+  const handleWinnerPicksSubmit = () => {
+    if (!gameId || !nextHoleNumber) return;
+    const constraints: WordConstraints = {};
+    if (wpStartsWith) constraints.startsWith = wpStartsWith.toUpperCase();
+    if (wpEndsWith) constraints.endsWith = wpEndsWith.toUpperCase();
+    if (wpContains) constraints.contains = wpContains.toUpperCase();
+    if (wpLetterPool) constraints.letterPool = wpLetterPool.toUpperCase();
+
+    if (Object.keys(constraints).length === 0) return;
+
+    updateHoleConstraints(gameId, roundNumber, nextHoleNumber, constraints).then(() => {
+      setWpSubmitted(prev => ({ ...prev, [currentHole]: true }));
+      setWpStartsWith('');
+      setWpEndsWith('');
+      setWpContains('');
+      setWpLetterPool('');
+    });
+  };
+
+  // Calculate round summary stats for the complete screen
+  const totalPar = round.holes.reduce((s, h) => s + h.par, 0);
+  const roundScoreRelative = completedHoles.length > 0
+    ? calculateRoundScoreRelativeToPar(completedHoles, round.holes.filter(h => completedHoles.some(ch => ch.holeNumber === h.holeNumber)))
+    : 0;
+  const totalScore = completedHoles.reduce((s, h) => s + h.score, 0);
+  const holesInOne = completedHoles.filter(h => h.solved && h.guesses.length === 1).length;
+  const eagles = completedHoles.filter(h => {
+    const holePar = round.holes.find(rh => rh.holeNumber === h.holeNumber)?.par || 4;
+    return h.score - holePar <= -2;
+  }).length;
+  const birdies = completedHoles.filter(h => {
+    const holePar = round.holes.find(rh => rh.holeNumber === h.holeNumber)?.par || 4;
+    return h.score - holePar === -1;
+  }).length;
+
   return (
     <div className="gameplay-page">
       {/* Mobile Header - compact, shown only on small screens */}
@@ -327,15 +390,22 @@ export default function GamePlayPage() {
         <div className="gameplay-header-center">
           <span className="gameplay-title">{game.name}</span>
           <span className="gameplay-subtitle">
-            Hole {currentHole} &middot; Par {par}
+            {userRoundComplete ? 'Round Complete' : `Hole ${currentHole} \u00B7 Par ${par}`}
           </span>
         </div>
         <div className="gameplay-header-actions">
-          {allComplete && (
-            <Link to={`/game/${gameId}/results`} className="btn btn-outline-success btn-sm">
-              Results
-            </Link>
-          )}
+          <div className="d-flex gap-1">
+            {completedHoles.length > 0 && (
+              <Link to="/daily" className="btn btn-outline-light btn-sm" style={{ fontSize: '0.7rem', padding: '2px 6px' }}>
+                Daily
+              </Link>
+            )}
+            {(allComplete || userRoundComplete) && (
+              <Link to={`/game/${gameId}/results`} className="btn btn-outline-light btn-sm" style={{ fontSize: '0.7rem', padding: '2px 6px' }}>
+                Results
+              </Link>
+            )}
+          </div>
         </div>
       </div>
 
@@ -347,7 +417,12 @@ export default function GamePlayPage() {
             <small className="text-muted">Round {roundNumber}</small>
           </div>
           <div className="d-flex gap-2">
-            {allComplete && (
+            {completedHoles.length > 0 && (
+              <Link to="/daily" className="btn btn-outline-success btn-sm">
+                Daily Board
+              </Link>
+            )}
+            {(allComplete || userRoundComplete) && (
               <Link to={`/game/${gameId}/results`} className="btn btn-outline-success btn-sm">
                 View Results
               </Link>
@@ -392,27 +467,21 @@ export default function GamePlayPage() {
       )}
 
       {/* Loading word from API (Classic mode) */}
-      {!isHoleLocked && !isHolePast && isClassicMode && !targetWord && (
+      {!isHoleLocked && !isHolePast && isClassicMode && !targetWord && !fetchFailed && (
         <div className="text-center py-5">
-          {fetchFailed ? (
-            <>
-              <p className="text-muted mb-2">Unable to fetch today's Wordle word.</p>
-              <button
-                className="btn btn-success btn-sm"
-                onClick={fetchWordForHole}
-                disabled={fetchingWord}
-              >
-                {fetchingWord ? 'Retrying...' : 'Retry'}
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="spinner-border text-success mb-3" role="status">
-                <span className="visually-hidden">Loading...</span>
-              </div>
-              <p className="text-muted">Fetching today's Wordle word...</p>
-            </>
-          )}
+          <div className="spinner-border text-success mb-3" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="text-muted">Fetching today's Wordle word...</p>
+        </div>
+      )}
+
+      {/* Classic mode fetch failed notice (game continues with fallback word) */}
+      {fetchFailed && targetWord && (
+        <div className="container">
+          <div className="alert alert-warning py-2 text-center small mt-2">
+            Could not fetch the official Wordle word. Using a fallback word instead.
+          </div>
         </div>
       )}
 
@@ -468,6 +537,14 @@ export default function GamePlayPage() {
                 Start word: <strong>{startWord}</strong>
               </small>
             )}
+            {holeConfig?.wordConstraints && !currentHoleResult && (
+              <small className="text-warning d-block">
+                {holeConfig.wordConstraints.startsWith && `Starts with: ${holeConfig.wordConstraints.startsWith} `}
+                {holeConfig.wordConstraints.endsWith && `Ends with: ${holeConfig.wordConstraints.endsWith} `}
+                {holeConfig.wordConstraints.contains && `Contains: ${holeConfig.wordConstraints.contains} `}
+                {holeConfig.wordConstraints.letterPool && `Pool: ${holeConfig.wordConstraints.letterPool}`}
+              </small>
+            )}
           </div>
 
           {/* Toast Message */}
@@ -502,16 +579,100 @@ export default function GamePlayPage() {
                 </span>
               )}
 
-              {nextUnplayedHole && nextUnplayedHole.holeNumber !== currentHole && (
-                <div className="mt-2">
+              <div className="mt-2 d-flex justify-content-center gap-2 flex-wrap">
+                {nextUnplayedHole && nextUnplayedHole.holeNumber !== currentHole && (
                   <button
                     className="btn btn-success btn-sm"
                     onClick={() => setCurrentHole(nextUnplayedHole.holeNumber)}
                   >
                     Next Hole (#{nextUnplayedHole.holeNumber})
                   </button>
+                )}
+                <Link to="/daily" className="btn btn-outline-success btn-sm">
+                  Daily Leaderboard
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* Winner Picks: constraint form for next hole */}
+          {showWinnerPicksForm && (
+            <div className="container mt-2 mb-2">
+              <div className="card border-success">
+                <div className="card-body py-2 px-3">
+                  <p className="fw-bold text-success mb-2 small">
+                    You won this hole! Set a rule for Hole {nextHoleNumber}:
+                  </p>
+                  <div className="row g-2 align-items-end">
+                    <div className="col-6 col-md-3">
+                      <label className="form-label small mb-0">Starts with</label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        maxLength={3}
+                        value={wpStartsWith}
+                        onChange={e => setWpStartsWith(e.target.value.replace(/[^a-zA-Z]/g, ''))}
+                        placeholder="e.g. TR"
+                      />
+                    </div>
+                    <div className="col-6 col-md-3">
+                      <label className="form-label small mb-0">Ends with</label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        maxLength={3}
+                        value={wpEndsWith}
+                        onChange={e => setWpEndsWith(e.target.value.replace(/[^a-zA-Z]/g, ''))}
+                        placeholder="e.g. ED"
+                      />
+                    </div>
+                    <div className="col-6 col-md-3">
+                      <label className="form-label small mb-0">Must contain</label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        maxLength={5}
+                        value={wpContains}
+                        onChange={e => setWpContains(e.target.value.replace(/[^a-zA-Z]/g, ''))}
+                        placeholder="e.g. AE"
+                      />
+                    </div>
+                    <div className="col-6 col-md-3">
+                      <label className="form-label small mb-0">Letter pool</label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        maxLength={26}
+                        value={wpLetterPool}
+                        onChange={e => setWpLetterPool(e.target.value.replace(/[^a-zA-Z]/g, ''))}
+                        placeholder="e.g. ABCDEF"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-2 d-flex gap-2">
+                    <button
+                      className="btn btn-success btn-sm"
+                      onClick={handleWinnerPicksSubmit}
+                      disabled={!wpStartsWith && !wpEndsWith && !wpContains && !wpLetterPool}
+                    >
+                      Set Rule
+                    </button>
+                    <button
+                      className="btn btn-outline-secondary btn-sm"
+                      onClick={() => setWpSubmitted(prev => ({ ...prev, [currentHole]: true }))}
+                    >
+                      Skip
+                    </button>
+                  </div>
                 </div>
-              )}
+              </div>
+            </div>
+          )}
+
+          {/* Winner picks: show constraint already set */}
+          {isWinnerPicks && wpSubmitted[currentHole] && nextHoleNumber && (
+            <div className="text-center mt-1 mb-1">
+              <small className="text-success">Rule set for Hole {nextHoleNumber}!</small>
             </div>
           )}
 
@@ -530,18 +691,69 @@ export default function GamePlayPage() {
         </div>
       )}
 
-      {/* Round Complete Notice */}
+      {/* Round Complete Summary Screen */}
       {userRoundComplete && (
         <div className="container">
-          <div className="alert alert-success mt-3 text-center">
-            <strong>Round Complete!</strong>
-            {allComplete ? (
-              <span> All players have finished.{' '}
-                <Link to={`/game/${gameId}/results`} className="alert-link">View Results</Link>
-              </span>
-            ) : (
-              <span> Waiting for other players to finish...</span>
-            )}
+          <div className="card game-card mt-3">
+            <div className="card-body text-center py-4">
+              <h4 className="fw-bold mb-1" style={{ color: 'var(--wl-green-dark)' }}>
+                Round {roundNumber} Complete!
+              </h4>
+              <p className="text-muted mb-3">You finished all {completedHoles.length} holes</p>
+
+              {/* Score Summary */}
+              <div className="d-flex justify-content-center gap-4 mb-3 flex-wrap">
+                <div className="text-center">
+                  <div className="fs-3 fw-bold" style={{ color: 'var(--wl-green-dark)' }}>{totalScore}</div>
+                  <small className="text-muted">Total Strokes</small>
+                </div>
+                <div className="text-center">
+                  <div className="fs-3 fw-bold" style={{ color: roundScoreRelative < 0 ? 'var(--wl-birdie)' : roundScoreRelative === 0 ? 'var(--wl-par)' : 'var(--wl-bogey)' }}>
+                    {roundScoreRelative === 0 ? 'E' : roundScoreRelative > 0 ? `+${roundScoreRelative}` : roundScoreRelative}
+                  </div>
+                  <small className="text-muted">vs Par ({totalPar})</small>
+                </div>
+              </div>
+
+              {/* Scoring highlights */}
+              {(holesInOne > 0 || eagles > 0 || birdies > 0) && (
+                <div className="d-flex justify-content-center gap-3 mb-3">
+                  {holesInOne > 0 && <span className="badge bg-warning text-dark">Holes in One: {holesInOne}</span>}
+                  {eagles > 0 && <span className="badge" style={{ backgroundColor: 'var(--wl-eagle)', color: 'white' }}>Eagles: {eagles}</span>}
+                  {birdies > 0 && <span className="badge" style={{ backgroundColor: 'var(--wl-birdie)', color: 'white' }}>Birdies: {birdies}</span>}
+                </div>
+              )}
+
+              {/* Status and actions */}
+              {allComplete ? (
+                <div>
+                  <p className="text-success fw-semibold mb-3">All players have finished!</p>
+                  <div className="d-flex justify-content-center gap-2 flex-wrap">
+                    <Link to={`/game/${gameId}/results`} className="btn btn-success btn-lg">
+                      View Leaderboard
+                    </Link>
+                    <Link to="/daily" className="btn btn-outline-success">
+                      Daily Leaderboard
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-muted mb-3">Waiting for other players to finish...</p>
+                  <div className="d-flex justify-content-center gap-2 flex-wrap">
+                    <Link to={`/game/${gameId}/results`} className="btn btn-success">
+                      View Results So Far
+                    </Link>
+                    <Link to="/daily" className="btn btn-outline-success">
+                      Daily Leaderboard
+                    </Link>
+                    <Link to="/dashboard" className="btn btn-outline-secondary">
+                      Dashboard
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

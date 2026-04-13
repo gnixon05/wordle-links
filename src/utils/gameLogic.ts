@@ -1,4 +1,4 @@
-import { GuessRow, HolePar, LetterGuess, LetterStatus, HoleResult, KeyboardKey, ThemeOption } from '../types';
+import { GuessRow, HolePar, LetterGuess, LetterStatus, HoleResult, KeyboardKey, ThemeOption, WordConstraints } from '../types';
 import { getThemedWordsForTarget, getWordListByLengthForTarget, isValidGuess } from '../data/wordLists';
 
 /**
@@ -115,26 +115,68 @@ export function isValidWord(word: string, length: number): boolean {
 }
 
 /**
+ * Filter words by constraints (starts with, ends with, contains, letter pool)
+ */
+export function filterByConstraints(words: string[], constraints?: WordConstraints): string[] {
+  if (!constraints) return words;
+
+  return words.filter(word => {
+    const w = word.toUpperCase();
+
+    if (constraints.startsWith) {
+      const prefix = constraints.startsWith.toUpperCase();
+      if (!w.startsWith(prefix)) return false;
+    }
+
+    if (constraints.endsWith) {
+      const suffix = constraints.endsWith.toUpperCase();
+      if (!w.endsWith(suffix)) return false;
+    }
+
+    if (constraints.contains) {
+      const required = constraints.contains.toUpperCase();
+      for (const ch of required) {
+        if (!w.includes(ch)) return false;
+      }
+    }
+
+    if (constraints.letterPool) {
+      const pool = new Set(constraints.letterPool.toUpperCase().split(''));
+      for (const ch of w) {
+        if (!pool.has(ch)) return false;
+      }
+    }
+
+    return true;
+  });
+}
+
+/**
  * Pick a random word from themed list for a hole
  */
 export function pickWordForHole(
   theme: string,
   par: HolePar,
   usedWords: string[],
-  customWord?: string
+  customWord?: string,
+  constraints?: WordConstraints
 ): string {
   if (customWord) return customWord.toUpperCase();
 
   const wordLength = getWordLengthForPar(par);
   const themedWords = getThemedWordsForTarget(theme, wordLength);
-  const available = themedWords.filter(w => !usedWords.includes(w));
+  let available = filterByConstraints(themedWords, constraints).filter(w => !usedWords.includes(w));
 
   if (available.length === 0) {
-    // Fallback to full list (still excluding plurals)
+    // Fallback to full list (still excluding plurals), with constraints
     const allWords = getWordListByLengthForTarget(wordLength);
-    const fallback = allWords.filter(w => !usedWords.includes(w));
-    if (fallback.length === 0) return themedWords[0];
-    return fallback[Math.floor(Math.random() * fallback.length)];
+    available = filterByConstraints(allWords, constraints).filter(w => !usedWords.includes(w));
+    if (available.length === 0) {
+      // Last resort: ignore constraints, just avoid used words
+      const fallback = themedWords.filter(w => !usedWords.includes(w));
+      if (fallback.length === 0) return themedWords[0];
+      return fallback[Math.floor(Math.random() * fallback.length)];
+    }
   }
 
   return available[Math.floor(Math.random() * available.length)];
@@ -145,7 +187,7 @@ export function pickWordForHole(
  * Accepts previouslyUsedWords to prevent reuse across rounds within a game/tour.
  */
 export function generateRoundWords(
-  holes: { par: HolePar; customWord?: string }[],
+  holes: { par: HolePar; customWord?: string; wordConstraints?: WordConstraints }[],
   frontTheme: string,
   backTheme: string,
   previouslyUsedWords: string[] = []
@@ -157,7 +199,7 @@ export function generateRoundWords(
     const hole = holes[i];
     const theme = i < 9 ? frontTheme : backTheme;
 
-    const word = pickWordForHole(theme, hole.par, usedWords, hole.customWord);
+    const word = pickWordForHole(theme, hole.par, usedWords, hole.customWord, hole.wordConstraints);
     words.push(word);
     usedWords.push(word);
   }
@@ -216,43 +258,76 @@ export function getTodayDateString(): string {
 
 /**
  * Attempt to fetch the official Wordle word for a given date.
- * Tries the Vite dev proxy first, then falls back to a direct CORS request.
- * Includes a timeout to avoid hanging forever.
+ * Uses the server-side proxy (/api/wordle/:date.json) which handles CORS.
+ * Includes timeout, retry logic, and a deterministic fallback when the API is unreachable.
  */
-export async function fetchDailyWordleWord(dateStr: string): Promise<string | null> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
+export async function fetchDailyWordleWord(dateStr: string, retries = 2): Promise<string | null> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-  try {
-    const url = `/api/wordle/${dateStr}.json`;
-    console.log(`[Wordle] Fetching word for ${dateStr} from ${url}`);
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: { 'Accept': 'application/json' },
-    });
-    clearTimeout(timeoutId);
+    try {
+      const url = `/api/wordle/${dateStr}.json`;
+      if (attempt === 0) {
+        console.log(`[Wordle] Fetching word for ${dateStr} from ${url}`);
+      } else {
+        console.log(`[Wordle] Retry ${attempt}/${retries} for ${dateStr}`);
+      }
 
-    if (!response.ok) {
-      console.warn(`[Wordle] Fetch failed: HTTP ${response.status} ${response.statusText}`);
-      return null;
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' },
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        console.warn(`[Wordle] Fetch failed: HTTP ${response.status} ${response.statusText}`);
+        if (attempt < retries) {
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+        return null;
+      }
+
+      // Guard against HTML responses (e.g. SPA fallback returning index.html)
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        console.warn(`[Wordle] Unexpected content-type: ${contentType}`);
+        if (attempt < retries) {
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+        return null;
+      }
+
+      const data = await response.json();
+      const solution = data.solution?.toUpperCase() || null;
+      console.log(`[Wordle] Got solution for ${dateStr}: ${solution ? '***' : 'null'}`);
+      return solution;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      console.error(`[Wordle] Fetch error for ${dateStr} (attempt ${attempt + 1}):`, err);
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
     }
-
-    // Guard against HTML responses (e.g. SPA fallback returning index.html)
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      console.warn(`[Wordle] Unexpected content-type: ${contentType}`);
-      return null;
-    }
-
-    const data = await response.json();
-    const solution = data.solution?.toUpperCase() || null;
-    console.log(`[Wordle] Got solution for ${dateStr}: ${solution ? '***' : 'null'}`);
-    return solution;
-  } catch (err) {
-    clearTimeout(timeoutId);
-    console.error(`[Wordle] Fetch error for ${dateStr}:`, err);
-    return null;
   }
+
+  return null;
+}
+
+/**
+ * Generate a deterministic fallback word for classic mode when the NYT API is unreachable.
+ * Uses seeded random based on date to ensure all players get the same word.
+ */
+export function generateFallbackClassicWord(dateStr: string): string {
+  const words = getThemedWordsForTarget('golf', 5);
+  const allWords = getWordListByLengthForTarget(5);
+  const pool = allWords.length > 0 ? allWords : words;
+  const seed = `classic-fallback-${dateStr}`;
+  const index = Math.floor(seededRandom(seed) * pool.length);
+  return pool[index];
 }
 
 /**

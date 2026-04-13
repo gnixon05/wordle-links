@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { Game, RoundConfig, RoundResult, HoleResult, HoleConfig, GameVisibility, ThemeOption, StartWordMode, WordMode } from '../types';
+import { Game, RoundConfig, RoundResult, HoleResult, HoleConfig, GameVisibility, ThemeOption, StartWordMode, WordMode, WordConstraints } from '../types';
 import {
   apiGetGames,
   apiGetGame,
@@ -16,7 +16,7 @@ import {
   apiGetUserResults,
   apiGetUserResult,
 } from '../utils/api';
-import { generateRoundWords, pickStartWord } from '../utils/gameLogic';
+import { generateRoundWords, pickStartWord, pickWordForHole } from '../utils/gameLogic';
 import { useAuth } from './AuthContext';
 
 interface CreateGameData {
@@ -35,6 +35,7 @@ interface CreateGameData {
     startWordModeBack?: StartWordMode;
     startWordThemeFront?: ThemeOption;
     startWordThemeBack?: ThemeOption;
+    winnerPicks?: boolean;
   };
 }
 
@@ -53,6 +54,7 @@ interface GameContextType {
   getGameResults: (gameId: string) => Promise<RoundResult[]>;
   getUserResults: (userId: string) => Promise<RoundResult[]>;
   isRoundCompleteForAllPlayers: (gameId: string, roundNumber: number) => Promise<boolean>;
+  updateHoleConstraints: (gameId: string, roundNumber: number, holeNumber: number, constraints: WordConstraints) => Promise<void>;
   startNewRound: (gameId: string, roundConfig: RoundConfig) => void;
   acceptInvitation: (gameId: string) => void;
   declineInvitation: (gameId: string) => void;
@@ -104,6 +106,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         startWordModeBack,
         startWordThemeFront,
         startWordThemeBack,
+        winnerPicks: data.roundConfig.winnerPicks,
       }],
       currentRound: 1,
       createdAt: new Date().toISOString(),
@@ -252,6 +255,43 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const updateHoleConstraints = useCallback(async (
+    gameId: string, roundNumber: number, holeNumber: number, constraints: WordConstraints
+  ) => {
+    const game = await apiGetGame(gameId);
+    if (!game) return;
+
+    const round = game.rounds.find(r => r.roundNumber === roundNumber);
+    if (!round) return;
+
+    // Update the hole config with the new constraints
+    const updatedHoles = round.holes.map(h =>
+      h.holeNumber === holeNumber ? { ...h, wordConstraints: constraints } : h
+    );
+
+    // Update round with modified holes
+    const updatedRounds = game.rounds.map(r =>
+      r.roundNumber === roundNumber ? { ...r, holes: updatedHoles } : r
+    );
+
+    await apiUpdateGame(gameId, { rounds: updatedRounds });
+
+    // Regenerate the word for this hole with the new constraints
+    const words = await apiGetGameWords(gameId, roundNumber);
+    if (words.length >= holeNumber) {
+      const theme = holeNumber <= 9
+        ? (round.frontNineTheme || 'golf')
+        : (round.backNineTheme || 'golf');
+      const holeConfig = updatedHoles.find(h => h.holeNumber === holeNumber)!;
+      const usedWords = words.filter((_, idx) => idx !== holeNumber - 1);
+      const newWord = pickWordForHole(theme, holeConfig.par, usedWords, holeConfig.customWord, constraints);
+      words[holeNumber - 1] = newWord;
+      await apiSaveGameWords(gameId, roundNumber, words);
+    }
+
+    refreshGames();
+  }, [refreshGames]);
+
   const startNewRound = useCallback(async (gameId: string, roundConfig: RoundConfig) => {
     const game = await apiGetGame(gameId);
     if (!game) return;
@@ -370,6 +410,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       getGameResults,
       getUserResults,
       isRoundCompleteForAllPlayers,
+      updateHoleConstraints,
       startNewRound,
       acceptInvitation,
       declineInvitation,

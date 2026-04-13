@@ -14,11 +14,13 @@ export default function DashboardPage() {
   const [joiningGameId, setJoiningGameId] = useState<string | null>(null);
   const [joinError, setJoinError] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'my' | 'public' | 'invites'>('my');
+  const [activeTab, setActiveTab] = useState<'my' | 'completed' | 'public' | 'invites'>('my');
 
   if (!user) return null;
 
   const myGames = getUserGames();
+  const activeGames = myGames.filter(g => g.status !== 'completed');
+  const completedGames = myGames.filter(g => g.status === 'completed');
   const publicGames = getPublicGames().filter(g => !g.playerIds.includes(user.id));
   const invitations = getUserInvitations();
 
@@ -57,9 +59,14 @@ export default function DashboardPage() {
       <div className="card game-card h-100">
         <div className="card-header d-flex justify-content-between align-items-center">
           <span>{game.name}</span>
-          <span className={`badge ${game.visibility === 'public' ? 'bg-success' : 'bg-warning text-dark'}`}>
-            {game.visibility}
-          </span>
+          <div className="d-flex gap-1">
+            {game.status === 'completed' && (
+              <span className="badge bg-secondary">Completed</span>
+            )}
+            <span className={`badge ${game.visibility === 'public' ? 'bg-success' : 'bg-warning text-dark'}`}>
+              {game.visibility}
+            </span>
+          </div>
         </div>
         <div className="card-body">
           <div className="mb-2">
@@ -109,7 +116,16 @@ export default function DashboardPage() {
             style={activeTab === 'my' ? { backgroundColor: 'var(--wl-green-dark)' } : {}}
             onClick={() => setActiveTab('my')}
           >
-            My Games ({myGames.length})
+            Active Games ({activeGames.length})
+          </button>
+        </li>
+        <li className="nav-item">
+          <button
+            className={`nav-link ${activeTab === 'completed' ? 'active' : ''}`}
+            style={activeTab === 'completed' ? { backgroundColor: 'var(--wl-green-dark)' } : {}}
+            onClick={() => setActiveTab('completed')}
+          >
+            Completed ({completedGames.length})
           </button>
         </li>
         <li className="nav-item">
@@ -135,20 +151,66 @@ export default function DashboardPage() {
         </li>
       </ul>
 
-      {/* My Games */}
+      {/* Active Games */}
       {activeTab === 'my' && (
         <div className="row g-3">
-          {myGames.length === 0 ? (
+          {activeGames.length === 0 ? (
             <div className="col-12 text-center py-5">
-              <p className="text-muted mb-3">You haven't joined any games yet.</p>
-              <Link to="/create-game" className="btn btn-outline-success">Create Your First Game</Link>
+              <p className="text-muted mb-3">You don't have any active games.</p>
+              <Link to="/create-game" className="btn btn-outline-success">Create a New Game</Link>
             </div>
           ) : (
-            myGames.map(game =>
+            activeGames.map(game =>
               renderGameCard(game, (
                 <div className="d-flex flex-column gap-2">
                   <Link to={`/game/${game.id}`} className="btn btn-success btn-sm w-100">
                     Play
+                  </Link>
+                  {game.creatorId === user.id && (
+                    confirmDeleteId === game.id ? (
+                      <div className="d-flex gap-2">
+                        <button
+                          className="btn btn-danger btn-sm flex-fill"
+                          onClick={() => { deleteGame(game.id); setConfirmDeleteId(null); }}
+                        >
+                          Confirm Delete
+                        </button>
+                        <button
+                          className="btn btn-outline-secondary btn-sm flex-fill"
+                          onClick={() => setConfirmDeleteId(null)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        className="btn btn-outline-danger btn-sm w-100"
+                        onClick={() => setConfirmDeleteId(game.id)}
+                      >
+                        Delete Game
+                      </button>
+                    )
+                  )}
+                </div>
+              ))
+            )
+          )}
+        </div>
+      )}
+
+      {/* Completed Games */}
+      {activeTab === 'completed' && (
+        <div className="row g-3">
+          {completedGames.length === 0 ? (
+            <div className="col-12 text-center py-5">
+              <p className="text-muted">No completed games yet.</p>
+            </div>
+          ) : (
+            completedGames.map(game =>
+              renderGameCard(game, (
+                <div className="d-flex flex-column gap-2">
+                  <Link to={`/game/${game.id}/results`} className="btn btn-outline-success btn-sm w-100">
+                    View Results
                   </Link>
                   {game.creatorId === user.id && (
                     confirmDeleteId === game.id ? (

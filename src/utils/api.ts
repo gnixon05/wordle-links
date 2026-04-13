@@ -212,6 +212,13 @@ export async function apiDeleteGame(gameId: string): Promise<boolean> {
   return !!result.data?.success;
 }
 
+export async function apiFinalizeCompletedGames(): Promise<{ finalized: string[]; count: number }> {
+  const result = await apiRequest<{ finalized: string[]; count: number }>('/api/games/finalize-completed', {
+    method: 'POST',
+  });
+  return result.data || { finalized: [], count: 0 };
+}
+
 // ---------- Game Words API ----------
 
 export async function apiGetGameWords(gameId: string, roundNumber: number): Promise<string[]> {

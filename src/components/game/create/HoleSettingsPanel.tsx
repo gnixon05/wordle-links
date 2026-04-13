@@ -57,7 +57,8 @@ function HoleCard({
   const showStartWordInput = isFront
     ? startWordModeFront === 'custom'
     : startWordModeBack === 'custom';
-  const showConstraints = !winnerPicksHidesConstraint && !hasCustomWord;
+  const hasCustomStartWord = showStartWordInput; // custom per-hole start word makes constraints obsolete
+  const showConstraints = !winnerPicksHidesConstraint && !hasCustomWord && !hasCustomStartWord;
   const showCustomWord = wordMode === 'custom' && (!winnerPicks || isFirstOfNine);
 
   const nineLabel = hole.holeNumber === 1 ? 'Front 9' : hole.holeNumber === 10 ? 'Back 9' : '';

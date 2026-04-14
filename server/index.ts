@@ -332,10 +332,27 @@ app.delete('/api/games/:id', requireAuth, (req, res) => {
 
 // ---------- Game Words endpoints ----------
 
-app.get('/api/games/:gameId/words/:roundNumber', (_req, res) => {
+app.get('/api/games/:gameId/words/:roundNumber', async (req, res) => {
+  const gameId = req.params.gameId;
+  const roundNumber = parseInt(req.params.roundNumber);
+
   const row = db.prepare('SELECT words_json FROM game_words WHERE game_id = ? AND round_number = ?')
-    .get(_req.params.gameId, parseInt(_req.params.roundNumber)) as { words_json: string } | undefined;
-  res.json(row ? JSON.parse(row.words_json) : []);
+    .get(gameId, roundNumber) as { words_json: string } | undefined;
+  let words: string[] = row ? JSON.parse(row.words_json) : [];
+
+  // For classic (NYT) rounds, transparently fill in any missing words for
+  // holes whose day has already arrived. This moves the NYT fetch entirely
+  // server-side so individual clients never have to talk to nytimes.com.
+  try {
+    words = await populateClassicWordsForRound(gameId, roundNumber, words);
+  } catch (err) {
+    console.error(`[Words] Failed to populate classic words for game ${gameId} round ${roundNumber}:`, err);
+  }
+
+  // Disable conditional caching — otherwise the browser would send
+  // If-None-Match and get 304 Not Modified responses that the client
+  // treats as fetch failures.
+  sendNoStoreJson(res, words);
 });
 
 app.put('/api/games/:gameId/words/:roundNumber', requireAuth, (req, res) => {
@@ -494,57 +511,172 @@ app.delete('/api/users/:userId/wordle-stats', requireAuth, (req, res) => {
   res.json({ success: true });
 });
 
-// ---------- Wordle NYT Proxy ----------
+// ---------- Wordle daily word (server-side cache + NYT fetch) ----------
+
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+// Prevent repeated concurrent fetches for the same date within one process
+const inFlightWordleFetches: Map<string, Promise<string | null>> = new Map();
+
+/**
+ * Look up the official Wordle solution for a given date.
+ * Uses a persistent SQLite cache so the NYT API is hit at most once per date
+ * across all users. Returns the upper-cased solution, or null if NYT was
+ * unreachable and nothing is cached.
+ */
+async function getOrFetchWordleWord(dateStr: string): Promise<string | null> {
+  if (!DATE_REGEX.test(dateStr)) return null;
+
+  // Cache hit?
+  const cached = db.prepare('SELECT word FROM wordle_daily_words WHERE date = ?')
+    .get(dateStr) as { word: string } | undefined;
+  if (cached?.word) return cached.word;
+
+  // De-duplicate concurrent in-flight fetches for the same date
+  const existing = inFlightWordleFetches.get(dateStr);
+  if (existing) return existing;
+
+  const promise = (async (): Promise<string | null> => {
+    const nytUrl = `https://www.nytimes.com/svc/wordle/v2/${dateStr}.json`;
+    const maxRetries = 2;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+        const response = await fetch(nytUrl, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
+            'Referer': 'https://www.nytimes.com/games/wordle/index.html',
+          },
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          console.warn(`[Wordle] NYT responded ${response.status} for ${dateStr} (attempt ${attempt + 1})`);
+          if (attempt < maxRetries) {
+            await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            continue;
+          }
+          return null;
+        }
+
+        const data = await response.json() as { solution?: string };
+        const word = data.solution?.toUpperCase();
+        if (!word) {
+          console.warn(`[Wordle] NYT response for ${dateStr} had no solution field`);
+          return null;
+        }
+
+        // Persist to cache so subsequent lookups are O(1)
+        db.prepare(
+          'INSERT OR REPLACE INTO wordle_daily_words (date, word) VALUES (?, ?)'
+        ).run(dateStr, word);
+        console.log(`[Wordle] Cached solution for ${dateStr}`);
+        return word;
+      } catch (err) {
+        console.error(`[Wordle] Fetch error for ${dateStr} (attempt ${attempt + 1}):`, err);
+        if (attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+      }
+    }
+
+    return null;
+  })();
+
+  inFlightWordleFetches.set(dateStr, promise);
+  try {
+    return await promise;
+  } finally {
+    inFlightWordleFetches.delete(dateStr);
+  }
+}
+
+/**
+ * Fill any missing classic-mode words for holes that are currently available
+ * (unlocked on or before today). Persists any newly-fetched words back to
+ * game_words so all players see the same value. Returns the (possibly updated)
+ * words array.
+ */
+async function populateClassicWordsForRound(
+  gameId: string,
+  roundNumber: number,
+  words: string[],
+): Promise<string[]> {
+  const roundRow = db.prepare(
+    'SELECT word_mode, start_date, holes_json FROM rounds WHERE game_id = ? AND round_number = ?'
+  ).get(gameId, roundNumber) as
+    | { word_mode: string; start_date: string; holes_json: string }
+    | undefined;
+
+  if (!roundRow || roundRow.word_mode !== 'classic') return words;
+
+  const holes: { holeNumber: number; par: number }[] = roundRow.holes_json
+    ? JSON.parse(roundRow.holes_json)
+    : [];
+  if (holes.length === 0) return words;
+
+  const updated = [...words];
+  // Ensure the array has a slot for every hole
+  while (updated.length < holes.length) updated.push('');
+
+  const todayTime = parseLocalDate(getTodayDateString()).getTime();
+  let dirty = false;
+
+  for (const hole of holes) {
+    const idx = hole.holeNumber - 1;
+    if (updated[idx]) continue; // already have a word
+
+    // Only fetch for holes that are unlocked (today or earlier)
+    const holeDate = getHoleAvailableDate(roundRow.start_date, hole.holeNumber);
+    if (holeDate.getTime() > todayTime) continue;
+
+    const dateStr = `${holeDate.getFullYear()}-${String(holeDate.getMonth() + 1).padStart(2, '0')}-${String(holeDate.getDate()).padStart(2, '0')}`;
+    const word = await getOrFetchWordleWord(dateStr);
+    if (word) {
+      updated[idx] = word;
+      dirty = true;
+    }
+  }
+
+  if (dirty) {
+    db.prepare(
+      'INSERT OR REPLACE INTO game_words (game_id, round_number, words_json) VALUES (?, ?, ?)'
+    ).run(gameId, roundNumber, JSON.stringify(updated));
+  }
+
+  return updated;
+}
+
+// Disable conditional caching on Wordle-related endpoints so browsers don't
+// receive 304 Not Modified responses that our client treats as fetch failures.
+function sendNoStoreJson(res: express.Response, payload: unknown): void {
+  res.set('Cache-Control', 'no-store');
+  res.json(payload);
+}
 
 app.get('/api/wordle/:date.json', async (req, res) => {
   const dateStr = req.params.date;
 
   // Validate date format to prevent path traversal
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+  if (!DATE_REGEX.test(dateStr)) {
     res.status(400).json({ error: 'Invalid date format. Expected YYYY-MM-DD.' });
     return;
   }
 
-  const nytUrl = `https://www.nytimes.com/svc/wordle/v2/${dateStr}.json`;
-  const maxRetries = 2;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-      const response = await fetch(nytUrl, {
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/json',
-          'Referer': 'https://www.nytimes.com/games/wordle/index.html',
-        },
-      });
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        console.warn(`[Wordle Proxy] NYT responded ${response.status} for ${dateStr} (attempt ${attempt + 1})`);
-        if (attempt < maxRetries) {
-          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-          continue;
-        }
-        res.status(response.status).json({ error: `NYT API returned ${response.status}` });
-        return;
-      }
-
-      const data = await response.json();
-      res.json(data);
-      return;
-    } catch (err) {
-      console.error(`[Wordle Proxy] Error fetching ${dateStr} (attempt ${attempt + 1}):`, err);
-      if (attempt < maxRetries) {
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-        continue;
-      }
-      res.status(502).json({ error: 'Failed to fetch from NYT API after retries' });
-    }
+  const word = await getOrFetchWordleWord(dateStr);
+  if (!word) {
+    res.set('Cache-Control', 'no-store');
+    res.status(502).json({ error: 'Failed to fetch from NYT API' });
+    return;
   }
+
+  sendNoStoreJson(res, { solution: word.toLowerCase() });
 });
 
 // ---------- Finalize Completed Games ----------

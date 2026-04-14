@@ -109,6 +109,12 @@ export function initializeDatabase(): void {
       PRIMARY KEY (user_id)
     );
 
+    CREATE TABLE IF NOT EXISTS wordle_daily_words (
+      date TEXT PRIMARY KEY,
+      word TEXT NOT NULL,
+      fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
     CREATE INDEX IF NOT EXISTS idx_game_players_user_id ON game_players(user_id);

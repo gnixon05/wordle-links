@@ -494,7 +494,7 @@ cp wordle-links.db wordle-links.db.backup
 | CloudFront serves stale content | Create an invalidation: `aws cloudfront create-invalidation --distribution-id ID --paths "/*"` |
 | 502 Bad Gateway (Nginx) | Check `sudo systemctl status wordle-links-api` and `sudo nginx -t` |
 | Database locked errors | Ensure only one server process is running. SQLite uses WAL mode for concurrent reads |
-| Wordle word fetch fails | Check browser console for `[Wordle]` logs. The Vite proxy adds required headers for NYT API |
+| Wordle word fetch fails | The Express server fetches the daily Wordle word from NYT and caches it in the `wordle_daily_words` table — check the server logs for `[Wordle]` entries. A deterministic fallback word is used on the client if NYT is unreachable. |
 | Build fails | Verify Node.js >= 18 with `node -v` |
 | Docker container won't start | Check logs with `docker compose logs app` and ensure port 3001 is not already in use |
 | HTTPS certificate errors | Run `sudo certbot renew` and check domain DNS points to the correct IP |

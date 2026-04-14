@@ -258,8 +258,12 @@ export function getTodayDateString(): string {
 
 /**
  * Attempt to fetch the official Wordle word for a given date.
- * Uses the server-side proxy (/api/wordle/:date.json) which handles CORS.
- * Includes timeout, retry logic, and a deterministic fallback when the API is unreachable.
+ *
+ * Note: the app no longer calls this during normal gameplay — classic-mode
+ * words are populated server-side inside `GET /api/games/:id/words/:round`
+ * from a persistent cache on the Express server. This helper remains as a
+ * thin wrapper around the `/api/wordle/:date.json` endpoint for tests and
+ * any ad-hoc callers.
  */
 export async function fetchDailyWordleWord(dateStr: string, retries = 2): Promise<string | null> {
   for (let attempt = 0; attempt <= retries; attempt++) {

@@ -22,7 +22,6 @@ import {
   getTodaysHoleNumber,
   formatHoleDate,
   getHoleAvailableDate,
-  fetchDailyWordleWord,
   generateFallbackClassicWord,
 } from '../utils/gameLogic';
 
@@ -43,12 +42,12 @@ export default function GamePlayPage() {
   const [message, setMessage] = useState('');
   const [showMessage, setShowMessage] = useState(false);
   const [startWordApplied, setStartWordApplied] = useState(false);
-  const [fetchingWord, setFetchingWord] = useState(false);
   const [fetchFailed, setFetchFailed] = useState(false);
   const [fetchedWords, setFetchedWords] = useState<Record<number, string>>({});
 
   // Async-loaded data
   const [words, setWords] = useState<string[]>([]);
+  const [wordsLoaded, setWordsLoaded] = useState(false);
   const [startWords, setStartWords] = useState<string[]>([]);
   const [completedHoles, setCompletedHoles] = useState<HoleResult[]>([]);
   const [userResultCompletedAt, setUserResultCompletedAt] = useState<string | undefined>();
@@ -66,10 +65,17 @@ export default function GamePlayPage() {
   const round = game?.rounds.find(r => r.roundNumber === roundNumber);
   const startDate = round?.startDate || '';
 
-  // Load words and user result from API
+  // Load words and user result from API. For classic mode, the server
+  // fetches the official Wordle word from NYT and caches it, so the words
+  // array returned here already contains the solutions for unlocked holes —
+  // the client no longer needs to hit nytimes.com directly.
   useEffect(() => {
     if (!gameId) return;
-    getWordsForRound(gameId, roundNumber).then(setWords);
+    setWordsLoaded(false);
+    getWordsForRound(gameId, roundNumber).then(w => {
+      setWords(w);
+      setWordsLoaded(true);
+    });
     getStartWordsForRound(gameId, roundNumber).then(setStartWords);
   }, [gameId, roundNumber, getWordsForRound, getStartWordsForRound]);
 
@@ -123,39 +129,25 @@ export default function GamePlayPage() {
   const isHolePast = holeAvailability === 'past' && !currentHoleResult;
   const isHolePlayable = holeAvailability === 'available' && !currentHoleResult;
 
-  // Fetch word from Wordle API for classic mode
-  const fetchWordForHole = useCallback(() => {
+  // Classic-mode fallback: the server fills hole words from NYT on demand
+  // and persists them into game_words. If the server couldn't reach NYT
+  // (e.g. outage), the slot comes back empty — generate a deterministic
+  // fallback locally so all players still see the same word and the game
+  // remains playable.
+  useEffect(() => {
     if (!isClassicMode || !gameId || !startDate) return;
-    if (targetWord) return;
-    if (isHoleLocked) return;
+    if (!wordsLoaded) return;
+    if (targetWord || isHoleLocked) return;
 
     const holeDate = getHoleAvailableDate(startDate, currentHole);
     const dateStr = `${holeDate.getFullYear()}-${String(holeDate.getMonth() + 1).padStart(2, '0')}-${String(holeDate.getDate()).padStart(2, '0')}`;
-
-    setFetchingWord(true);
-    setFetchFailed(false);
-    fetchDailyWordleWord(dateStr).then(word => {
-      if (word) {
-        setFetchedWords(prev => ({ ...prev, [currentHole]: word }));
-        updateWordForHole(gameId, roundNumber, currentHole - 1, word);
-      } else {
-        // Use deterministic fallback so all players still get the same word
-        console.warn(`[Wordle] Using fallback word for ${dateStr}`);
-        const fallback = generateFallbackClassicWord(dateStr);
-        setFetchedWords(prev => ({ ...prev, [currentHole]: fallback }));
-        updateWordForHole(gameId, roundNumber, currentHole - 1, fallback);
-        setFetchFailed(true); // still show the warning, but game continues
-      }
-      setFetchingWord(false);
-    });
-  }, [isClassicMode, gameId, startDate, currentHole, targetWord, isHoleLocked, roundNumber, updateWordForHole]);
-
-  useEffect(() => {
-    if (!isClassicMode || !gameId || !startDate) return;
-    if (targetWord || isHoleLocked || fetchingWord) return;
-    fetchWordForHole();
+    console.warn(`[Wordle] Server did not return a word for ${dateStr}; using fallback`);
+    const fallback = generateFallbackClassicWord(dateStr);
+    setFetchedWords(prev => ({ ...prev, [currentHole]: fallback }));
+    updateWordForHole(gameId, roundNumber, currentHole - 1, fallback);
+    setFetchFailed(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isClassicMode, gameId, startDate, currentHole, targetWord, isHoleLocked]);
+  }, [isClassicMode, gameId, startDate, currentHole, targetWord, isHoleLocked, wordsLoaded]);
 
   // Auto-navigate to today's hole on mount (or last played hole if round is done)
   const hasAutoNavigated = useRef(false);

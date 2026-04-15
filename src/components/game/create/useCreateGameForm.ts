@@ -71,6 +71,45 @@ export function useCreateGameForm() {
     }));
   };
 
+  /**
+   * Strip any hole-level fields that are not visible under the current
+   * top-level settings. This ensures that stale state from a previously
+   * selected mode (e.g. constraints entered while "none" was selected) isn't
+   * silently submitted when the user switches modes before saving.
+   */
+  const sanitizeHolesForSubmit = (): HoleConfig[] => {
+    return holes.map(h => {
+      const isFront = h.holeNumber <= 9;
+      const isFirstOfNine = h.holeNumber === 1 || h.holeNumber === 10;
+      const nineMode = isFront ? startWordModeFront : startWordModeBack;
+      const winnerPicksHidesConstraint = winnerPicks && !isFirstOfNine;
+
+      // Custom target word input is only visible when wordMode is 'custom'
+      // and winner-picks either isn't on or this is the first hole of a nine.
+      const showCustomWord = wordMode === 'custom' && (!winnerPicks || isFirstOfNine);
+      // Custom per-hole start word is only visible when the nine's start
+      // word mode is 'custom'.
+      const showCustomStartWord = nineMode === 'custom';
+
+      const cleaned: HoleConfig = {
+        holeNumber: h.holeNumber,
+        par: h.par,
+      };
+      if (showCustomWord && h.customWord) cleaned.customWord = h.customWord;
+      if (showCustomStartWord && h.customStartWord) cleaned.customStartWord = h.customStartWord;
+
+      // Constraints are shown in the same cases as HoleCard:
+      // hidden when winner-picks hides them, when a custom word is set (value-based),
+      // or when the nine uses a custom per-hole start word.
+      const showConstraints =
+        !winnerPicksHidesConstraint && !cleaned.customWord && !showCustomStartWord;
+      if (showConstraints && h.wordConstraints && Object.keys(h.wordConstraints).length > 0) {
+        cleaned.wordConstraints = h.wordConstraints;
+      }
+      return cleaned;
+    });
+  };
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     setError('');
@@ -116,7 +155,7 @@ export function useCreateGameForm() {
       password: visibility === 'private' ? password || undefined : undefined,
       invitedUserIds: visibility === 'private' ? invitedIds : [],
       roundConfig: {
-        holes,
+        holes: sanitizeHolesForSubmit(),
         wordMode,
         startWordModeFront,
         startWordModeBack,

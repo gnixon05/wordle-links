@@ -17,7 +17,7 @@ import {
   apiGetUserResult,
   apiFinalizeCompletedGames,
 } from '../utils/api';
-import { generateRoundWords, pickStartWord, pickWordForHole, getHoleAvailability, calculateHoleScore, getMaxGuessesForPar } from '../utils/gameLogic';
+import { generateRoundWords, pickStartWord, pickWordForHole, getHoleAvailability, calculateHoleScore, getMaxGuessesForPar, getTodaysHoleNumber } from '../utils/gameLogic';
 import { useAuth } from './AuthContext';
 
 interface CreateGameData {
@@ -211,36 +211,79 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const submitHoleResult = useCallback(async (gameId: string, roundNumber: number, holeResult: HoleResult) => {
     if (!user) return;
 
-    let existing = await apiGetUserResult(gameId, roundNumber, user.id);
-    if (!existing) {
-      existing = {
-        roundNumber,
-        userId: user.id,
-        gameId,
-        holes: [],
-        totalScore: 0,
-      };
-    }
-
-    const holeIdx = existing.holes.findIndex(h => h.holeNumber === holeResult.holeNumber);
-    if (holeIdx >= 0) {
-      existing.holes[holeIdx] = holeResult;
-    } else {
-      existing.holes.push(holeResult);
-    }
-
-    existing.holes.sort((a, b) => a.holeNumber - b.holeNumber);
-    existing.totalScore = existing.holes.reduce((sum, h) => sum + h.score, 0);
-
-    const game = await apiGetGame(gameId);
-    if (game) {
-      const round = game.rounds.find(r => r.roundNumber === roundNumber);
-      if (round && existing.holes.length === round.holes.length) {
-        existing.completedAt = new Date().toISOString();
+    // Persist the submitted result for the specific game/round, merging with
+    // any existing holes for this user. Returns the saved game (for reuse).
+    const persistForGame = async (
+      targetGameId: string,
+      targetRoundNumber: number,
+      result: HoleResult,
+    ) => {
+      let existing = await apiGetUserResult(targetGameId, targetRoundNumber, user.id);
+      if (!existing) {
+        existing = {
+          roundNumber: targetRoundNumber,
+          userId: user.id,
+          gameId: targetGameId,
+          holes: [],
+          totalScore: 0,
+        };
       }
-    }
 
-    await apiSaveResult(existing);
+      const holeIdx = existing.holes.findIndex(h => h.holeNumber === result.holeNumber);
+      if (holeIdx >= 0) {
+        existing.holes[holeIdx] = result;
+      } else {
+        existing.holes.push(result);
+      }
+
+      existing.holes.sort((a, b) => a.holeNumber - b.holeNumber);
+      existing.totalScore = existing.holes.reduce((sum, h) => sum + h.score, 0);
+
+      const targetGame = await apiGetGame(targetGameId);
+      if (targetGame) {
+        const round = targetGame.rounds.find(r => r.roundNumber === targetRoundNumber);
+        if (round && existing.holes.length === round.holes.length) {
+          existing.completedAt = new Date().toISOString();
+        }
+      }
+
+      await apiSaveResult(existing);
+    };
+
+    await persistForGame(gameId, roundNumber, holeResult);
+
+    // Classic-mode words are the same across every classic game for a given
+    // calendar day (they all use the official NYT Wordle word). If the user
+    // is in multiple classic games, completing today's hole in one should
+    // automatically credit the same result to any other classic game where
+    // today's hole is currently available and hasn't been played yet.
+    const sourceGame = await apiGetGame(gameId);
+    const sourceRound = sourceGame?.rounds.find(r => r.roundNumber === roundNumber);
+    if (!sourceGame || !sourceRound || sourceRound.wordMode !== 'classic') return;
+
+    // Re-fetch the authoritative game list so we never mutate state-owned data
+    // and always act on the latest view of the user's games.
+    const allGames = await apiGetGames();
+    for (const otherGame of allGames) {
+      if (otherGame.id === gameId) continue;
+      if (!otherGame.playerIds.includes(user.id)) continue;
+
+      const otherRound = otherGame.rounds.find(r => r.roundNumber === otherGame.currentRound);
+      if (!otherRound || otherRound.wordMode !== 'classic') continue;
+
+      const todaysHole = getTodaysHoleNumber(otherRound.startDate, otherRound.holes.length);
+      if (todaysHole === null) continue;
+
+      // Skip if this game already has a result recorded for today's hole
+      const existingOther = await apiGetUserResult(otherGame.id, otherGame.currentRound, user.id);
+      if (existingOther?.holes.some(h => h.holeNumber === todaysHole)) continue;
+
+      const mirroredResult: HoleResult = {
+        ...holeResult,
+        holeNumber: todaysHole,
+      };
+      await persistForGame(otherGame.id, otherGame.currentRound, mirroredResult);
+    }
   }, [user]);
 
   const getUserResult = useCallback(async (gameId: string, roundNumber: number, userId: string) => {

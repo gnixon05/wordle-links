@@ -84,7 +84,7 @@ export default function WordleStatsImport({ userId, onStatsUpdated }: WordleStat
 
     await apiSaveWordleStats(userId, stats);
     setExisting(stats);
-    setSuccess('Wordle stats imported successfully!');
+    setSuccess('Stats imported successfully!');
     setMode('view');
     onStatsUpdated();
     setTimeout(() => setSuccess(''), 3000);
@@ -112,13 +112,13 @@ export default function WordleStatsImport({ userId, onStatsUpdated }: WordleStat
 
       await apiSaveWordleStats(userId, stats);
       setExisting(stats);
-      setSuccess('Wordle stats imported from JSON successfully!');
+      setSuccess('Stats imported from JSON successfully!');
       setJsonInput('');
       setMode('view');
       onStatsUpdated();
       setTimeout(() => setSuccess(''), 3000);
     } catch {
-      setError('Invalid JSON. Please paste valid JSON from the Wordle statistics.');
+      setError('Invalid JSON. Please paste valid JSON from the NYT Wordle statistics export.');
     }
   };
 
@@ -135,7 +135,7 @@ export default function WordleStatsImport({ userId, onStatsUpdated }: WordleStat
     setDist4('0');
     setDist5('0');
     setDist6('0');
-    setSuccess('Imported Wordle stats cleared.');
+    setSuccess('Imported stats cleared.');
     onStatsUpdated();
     setTimeout(() => setSuccess(''), 3000);
   };
@@ -161,7 +161,7 @@ export default function WordleStatsImport({ userId, onStatsUpdated }: WordleStat
   return (
     <div className="card game-card">
       <div className="card-header d-flex justify-content-between align-items-center">
-        <span>NYT Wordle Stats</span>
+        <span>Import Prior Stats</span>
         {existing && mode === 'view' && (
           <div className="d-flex gap-1">
             <button className="btn btn-outline-success btn-sm py-0 px-2" onClick={() => setMode('manual')}>
@@ -180,7 +180,7 @@ export default function WordleStatsImport({ userId, onStatsUpdated }: WordleStat
         {mode === 'view' && !existing && (
           <div className="text-center">
             <p className="text-muted small mb-3">
-              Import your NYT Wordle stats to track your overall Wordle history alongside your Wordle Tour games.
+              Import prior stats (e.g. from NYT Wordle) to track your history alongside your Word Tour games.
             </p>
             <div className="d-flex gap-2 justify-content-center">
               <button className="btn btn-success btn-sm" onClick={() => setMode('manual')}>
@@ -311,7 +311,7 @@ export default function WordleStatsImport({ userId, onStatsUpdated }: WordleStat
         {mode === 'json' && (
           <>
             <p className="text-muted small">
-              Paste the JSON from your Wordle statistics. See instructions below for how to get it.
+              Paste the JSON from your exported statistics (e.g. from NYT Wordle). See instructions below for how to get it.
             </p>
             <textarea
               className="form-control form-control-sm mb-2"

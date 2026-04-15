@@ -7,7 +7,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
-      - DATABASE_PATH=/app/data/wordle-links.db
+      - DATABASE_PATH=/app/data/word-tour.db
     volumes:
       - db-data:/app/data
     restart: unless-stopped

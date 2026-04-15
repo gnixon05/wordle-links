@@ -1,8 +1,8 @@
-# CLAUDE.md — AI Assistant Guide for wordle-tour
+# CLAUDE.md — AI Assistant Guide for word-tour
 
 ## Project Overview
 
-**wordle-tour** is a full-stack, golf-themed Wordle game where players compete across 18 "holes" of word-guessing puzzles. Each hole unlocks daily, and scores map to golf terminology (Hole-in-One, Eagle, Birdie, Par, Bogey, Double Bogey). Supports multiplayer, public/private games, custom word themes, and daily leaderboards.
+**word-tour** is a full-stack, golf-themed word-guessing game where players compete across 18 "holes" of word puzzles. Each hole unlocks daily, and scores map to golf terminology (Hole-in-One, Eagle, Birdie, Par, Bogey, Double Bogey). Supports multiplayer, public/private games, custom word themes, and daily leaderboards.
 
 **License**: CC0 1.0 Universal (public domain)
 
@@ -21,7 +21,7 @@
 ## Repository Structure
 
 ```
-wordle-tour/
+word-tour/
 ├── server/
 │   ├── db.ts                    # SQLite schema & initialization
 │   └── index.ts                 # Express API (auth, games, results, users)
@@ -121,7 +121,7 @@ Core logic in `src/utils/gameLogic.ts` (testable independently of UI):
 
 - **Par 3/4/5** maps to 4/5/6-letter words and 5/6/7 max guesses
 - **Scoring**: Hole-in-One (1 guess), Eagle (par-2), Birdie (par-1), Par, Bogey (par+1), Double Bogey (par+2 or fail)
-- **Word modes**: Classic (NYT Wordle API daily words) or Custom (themed categories)
+- **Word modes**: Classic Daily (uses the official NYT daily word via its public feed) or Custom (themed categories)
 - **Start words**: Forced first guess — configurable per front 9 / back 9 (none, from theme, or custom per hole)
 - **Winner Picks**: Optional rule where the hole winner sets constraints for the next hole
 - **Daily unlock**: One hole per day at midnight local time

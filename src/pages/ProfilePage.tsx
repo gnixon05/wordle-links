@@ -277,8 +277,8 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Wordle-style Stats */}
-          <h5 className="fw-bold mb-3" style={{ color: 'var(--wl-green-dark)' }}>Wordle Stats</h5>
+          {/* Per-hole guess distribution stats */}
+          <h5 className="fw-bold mb-3" style={{ color: 'var(--wl-green-dark)' }}>Guess Stats</h5>
           <div className="stats-grid mb-3">
             <div className="stat-card">
               <div className="stat-value">{stats.holesPlayed}</div>

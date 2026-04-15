@@ -235,8 +235,8 @@ export default function GameResultsPage() {
             </div>
           ))}
 
-          {/* Player Boards (show actual Wordle grids) */}
-          <h5 className="fw-bold mb-3 mt-4" style={{ color: 'var(--wl-green-dark)' }}>Wordle Boards</h5>
+          {/* Player Boards (show actual guess grids) */}
+          <h5 className="fw-bold mb-3 mt-4" style={{ color: 'var(--wl-green-dark)' }}>Guess Boards</h5>
           {sortedResults.map(player => (
             <div key={`boards-${player.userId}`} className="card game-card mb-3">
               <div className="card-header d-flex align-items-center gap-2">

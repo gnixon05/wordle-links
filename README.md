@@ -1,10 +1,10 @@
-# Wordle Links
+# Word Tour
 
-A golf-themed Wordle game where every guess counts as a stroke. Play 18 holes of word puzzles, compete with friends, and climb the leaderboard.
+A golf-themed word-guessing game where every guess counts as a stroke. Play 18 holes of word puzzles, compete with friends, and climb the leaderboard.
 
 ## Overview
 
-Wordle Links combines the word-guessing mechanics of [Wordle](https://www.nytimes.com/games/wordle/index.html) with golf scoring. Each round consists of 18 holes, and each hole presents a word puzzle. Your number of guesses equals your strokes — solve it under par for a birdie or eagle, or take too many for a bogey.
+Word Tour combines letter-by-letter word-guessing mechanics with golf scoring. Each round consists of 18 holes, and each hole presents a word puzzle. Your number of guesses equals your strokes — solve it under par for a birdie or eagle, or take too many for a bogey.
 
 ### Key Features
 
@@ -37,7 +37,7 @@ Scoring adjusts based on par: a Par 3 hole has 5 max guesses, Par 5 has 7 max gu
 
 ## Architecture
 
-Wordle Links has two components:
+Word Tour has two components:
 
 1. **Frontend** — React 19 SPA served by Vite (dev) or any static file server (production)
 2. **Backend** — Express.js API server with SQLite database for persistent storage
@@ -55,7 +55,7 @@ Wordle Links has two components:
 
 ### Data Storage
 
-All data is stored in a SQLite database (`wordle-links.db`):
+All data is stored in a SQLite database (`word-tour.db`):
 
 | Table | Purpose |
 |:------|:--------|
@@ -68,12 +68,12 @@ All data is stored in a SQLite database (`wordle-links.db`):
 | `round_results` | Player scores per round (holes stored as JSON) |
 | `game_words` | Target words per round (hidden from players) |
 | `game_start_words` | Forced first guesses per round |
-| `wordle_imported_stats` | Imported NYT Wordle statistics per user |
+| `wordle_imported_stats` | Imported stats (e.g. from NYT Wordle) per user |
 
 ## Project Structure
 
 ```
-wordle-links/
+word-tour/
 ├── server/                    # Backend API server
 │   ├── db.ts                  # SQLite database schema and initialization
 │   └── index.ts               # Express server with all API endpoints
@@ -110,8 +110,8 @@ wordle-links/
 1. **Clone the repository:**
 
    ```bash
-   git clone https://github.com/your-username/wordle-links.git
-   cd wordle-links
+   git clone https://github.com/your-username/word-tour.git
+   cd word-tour
    ```
 
 2. **Install dependencies:**
@@ -167,7 +167,7 @@ wordle-links/
 
 ## Deployment
 
-Wordle Links requires both a **static file server** (for the React frontend) and a **Node.js process** (for the Express API server). Below are three deployment options, starting with the simplest.
+Word Tour requires both a **static file server** (for the React frontend) and a **Node.js process** (for the Express API server). Below are three deployment options, starting with the simplest.
 
 ### Prerequisites (All Options)
 
@@ -275,8 +275,8 @@ nginx -v  # Should print nginx/1.x.x
 
 ```bash
 cd ~
-git clone https://github.com/your-username/wordle-links.git
-cd wordle-links
+git clone https://github.com/your-username/word-tour.git
+cd word-tour
 npm install
 
 # (Optional) Configure Pexels API key
@@ -290,17 +290,17 @@ npm run build
 
 Create a systemd service so the API server starts on boot and auto-restarts on failure.
 
-Create `/etc/systemd/system/wordle-links-api.service`:
+Create `/etc/systemd/system/word-tour-api.service`:
 
 ```ini
 [Unit]
-Description=Wordle Links API Server
+Description=Word Tour API Server
 After=network.target
 
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/home/ubuntu/wordle-links
+WorkingDirectory=/home/ubuntu/word-tour
 ExecStart=/usr/bin/npx tsx server/index.ts
 Restart=on-failure
 RestartSec=5
@@ -315,11 +315,11 @@ WantedBy=multi-user.target
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable wordle-links-api
-sudo systemctl start wordle-links-api
+sudo systemctl enable word-tour-api
+sudo systemctl start word-tour-api
 
 # Verify it's running
-sudo systemctl status wordle-links-api
+sudo systemctl status word-tour-api
 curl http://localhost:3001/api/health   # Should return a response
 ```
 
@@ -327,14 +327,14 @@ curl http://localhost:3001/api/health   # Should return a response
 
 Nginx serves the static frontend files and proxies `/api/*` requests to the Express backend.
 
-Create `/etc/nginx/conf.d/wordle-links.conf`:
+Create `/etc/nginx/conf.d/word-tour.conf`:
 
 ```nginx
 server {
     listen 80;
     server_name your-domain.com;
 
-    root /home/ubuntu/wordle-links/dist;
+    root /home/ubuntu/word-tour/dist;
     index index.html;
 
     gzip on;
@@ -404,11 +404,11 @@ Certbot automatically modifies your Nginx config to redirect HTTP to HTTPS and m
 #### Redeploying Updates
 
 ```bash
-cd ~/wordle-links
+cd ~/word-tour
 git pull origin master
 npm install
 npm run build
-sudo systemctl restart wordle-links-api
+sudo systemctl restart word-tour-api
 # Nginx does not need a restart — it serves the new static files immediately
 ```
 
@@ -467,16 +467,16 @@ Configure the frontend to point to your API URL by setting `VITE_API_URL` in `.e
 | `VITE_API_URL` | No | API base URL for split frontend/backend deployments (default: same origin) |
 | `PORT` | No | API server port (default: `3001`) |
 | `NODE_ENV` | No | Set to `production` in deployed environments |
-| `DATABASE_PATH` | No | Absolute path to SQLite database file (default: `wordle-links.db` in project root). Set this to a path on a persistent volume in Docker to survive redeployments. |
+| `DATABASE_PATH` | No | Absolute path to SQLite database file (default: `word-tour.db` in project root). Set this to a path on a persistent volume in Docker to survive redeployments. |
 
 ### Database
 
-The SQLite database file (`wordle-links.db`) is created automatically on first server start in the project root. No database setup is needed.
+The SQLite database file (`word-tour.db`) is created automatically on first server start in the project root. No database setup is needed.
 
 **Backups:**
 
 ```bash
-cp wordle-links.db wordle-links.db.backup
+cp word-tour.db word-tour.db.backup
 ```
 
 **Reset:** Delete the file and restart the server — all tables will be recreated (empty).
@@ -489,12 +489,12 @@ cp wordle-links.db wordle-links.db.backup
 
 | Issue | Solution |
 |:------|:---------|
-| API returns "Network error" | Ensure the Express server is running (`sudo systemctl status wordle-links-api` or `docker compose logs app`) |
+| API returns "Network error" | Ensure the Express server is running (`sudo systemctl status word-tour-api` or `docker compose logs app`) |
 | SPA routes return 404 | Nginx: check `try_files` directive. S3: set error document to `index.html` |
 | CloudFront serves stale content | Create an invalidation: `aws cloudfront create-invalidation --distribution-id ID --paths "/*"` |
-| 502 Bad Gateway (Nginx) | Check `sudo systemctl status wordle-links-api` and `sudo nginx -t` |
+| 502 Bad Gateway (Nginx) | Check `sudo systemctl status word-tour-api` and `sudo nginx -t` |
 | Database locked errors | Ensure only one server process is running. SQLite uses WAL mode for concurrent reads |
-| Wordle word fetch fails | The Express server fetches the daily Wordle word from NYT and caches it in the `wordle_daily_words` table — check the server logs for `[Wordle]` entries. A deterministic fallback word is used on the client if NYT is unreachable. |
+| Daily word fetch fails | The Express server fetches the official daily word from NYT and caches it in the `wordle_daily_words` table — check the server logs for `[Wordle]` entries. A deterministic fallback word is used on the client if NYT is unreachable. |
 | Build fails | Verify Node.js >= 18 with `node -v` |
 | Docker container won't start | Check logs with `docker compose logs app` and ensure port 3001 is not already in use |
 | HTTPS certificate errors | Run `sudo certbot renew` and check domain DNS points to the correct IP |

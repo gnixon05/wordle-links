@@ -1,4 +1,4 @@
-/* Wordle Tour - Golf Theme */
+/* Word Tour - Golf Theme */
 :root {
   --wl-green-dark: #1a472a;
   --wl-green-medium: #2d6a4f;
@@ -10,7 +10,7 @@
   --wl-white: #ffffff;
   --wl-bg: #f8f9fa;
 
-  /* Wordle tile colors */
+  /* Guess tile colors */
   --wl-correct: #538d4e;
   --wl-present: #b59f3b;
   --wl-absent: #3a3a3c;
@@ -525,7 +525,7 @@ body {
   padding: 2rem;
 }
 
-/* Wordle Board */
+/* Guess Board */
 .wordle-board {
   display: flex;
   flex-direction: column;

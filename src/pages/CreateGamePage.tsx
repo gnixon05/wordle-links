@@ -49,7 +49,7 @@ export default function CreateGamePage() {
 
                 {form.wordMode === 'classic' && (
                   <div className="alert alert-info small mb-3">
-                    Each hole will use the official Wordle word for the day it unlocks.
+                    Each hole will use the official daily word for the day it unlocks.
                     Hole 1 uses today's word, Hole 2 uses tomorrow's, and so on.
                     All 18 holes are Par 4 (5-letter words, 6 guesses).
                   </div>

@@ -474,7 +474,7 @@ export default function GamePlayPage() {
           <div className="spinner-border text-success mb-3" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
-          <p className="text-muted">Fetching today's Wordle word...</p>
+          <p className="text-muted">Fetching today's word...</p>
         </div>
       )}
 
@@ -482,7 +482,7 @@ export default function GamePlayPage() {
       {fetchFailed && targetWord && (
         <div className="container">
           <div className="alert alert-warning py-2 text-center small mt-2">
-            Could not fetch the official Wordle word. Using a fallback word instead.
+            Could not fetch the official daily word. Using a fallback word instead.
           </div>
         </div>
       )}
@@ -532,7 +532,7 @@ export default function GamePlayPage() {
               </small>
             </div>
             {isClassicMode && !currentHoleResult && (
-              <small className="text-muted d-block">Classic Wordle</small>
+              <small className="text-muted d-block">Classic Daily</small>
             )}
             {hasStartWord && !currentHoleResult && (
               <small className="text-info d-block">

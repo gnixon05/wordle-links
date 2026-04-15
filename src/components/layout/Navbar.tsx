@@ -27,7 +27,7 @@ export default function Navbar() {
       <div className="container">
         <Link className="navbar-brand d-flex align-items-center" to="/" onClick={closeMenu}>
           <span className="me-2">&#9971;</span>
-          Wordle Tour
+          Word Tour
         </Link>
 
         <button

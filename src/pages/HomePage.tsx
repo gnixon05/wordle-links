@@ -26,11 +26,11 @@ export default function HomePage() {
         <div className="hero-overlay" />
         <div className="hero-content">
           <h1 className="display-3 fw-bold mb-3">
-            <span className="me-2">&#9971;</span>Wordle Tour
+            <span className="me-2">&#9971;</span>Word Tour
           </h1>
           <p className="lead mb-4" style={{ maxWidth: '600px', margin: '0 auto' }}>
             The golf-themed word game where every guess counts as a stroke.
-            Play 18 holes of Wordle, compete with friends, and climb the leaderboard.
+            Play 18 holes of word puzzles, compete with friends, and climb the leaderboard.
           </p>
           <div className="d-flex gap-3 justify-content-center flex-wrap">
             {isAuthenticated ? (
@@ -64,7 +64,7 @@ export default function HomePage() {
                   <span style={{ fontSize: '2rem' }}>&#127951;</span>
                 </div>
                 <div className="card-body text-center">
-                  <h5 className="card-title">18 Holes of Wordle</h5>
+                  <h5 className="card-title">18 Holes of Words</h5>
                   <p className="card-text text-muted">
                     Each round has 18 holes, just like real golf. Every hole is a word puzzle.
                     Par 3 holes use 4-letter words (5 guesses), Par 4 uses 5-letter words (6 guesses),

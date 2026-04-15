@@ -8,8 +8,8 @@ interface Props {
 const MODES: { value: WordMode; label: string; description: string }[] = [
   {
     value: 'classic',
-    label: 'Classic Wordle',
-    description: 'Uses the official daily Wordle word from the NYT Wordle API. All holes are Par 4 (5-letter words, 6 guesses). Each hole uses the Wordle word of the day it unlocks.',
+    label: 'Classic Daily',
+    description: 'Uses the official daily word from the public word-of-the-day feed. All holes are Par 4 (5-letter words, 6 guesses). Each hole uses the word of the day it unlocks.',
   },
   {
     value: 'custom',

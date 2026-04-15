@@ -54,9 +54,10 @@ function HoleCard({
   const winnerPicksHidesConstraint = winnerPicks && !isFirstOfNine;
   const hasCustomWord = !!hole.customWord;
   const isFront = hole.holeNumber <= 9;
-  const showStartWordInput = isFront
-    ? startWordModeFront === 'custom'
-    : startWordModeBack === 'custom';
+  const nineMode = isFront ? startWordModeFront : startWordModeBack;
+  // When Winner Picks is on, only the first hole of each nine needs an
+  // initial start word — the hole winner's rule determines the rest.
+  const showStartWordInput = nineMode === 'custom' && (!winnerPicks || isFirstOfNine);
   const hasCustomStartWord = showStartWordInput; // custom per-hole start word makes constraints obsolete
   const showConstraints = !winnerPicksHidesConstraint && !hasCustomWord && !hasCustomStartWord;
   const showCustomWord = wordMode === 'custom' && (!winnerPicks || isFirstOfNine);

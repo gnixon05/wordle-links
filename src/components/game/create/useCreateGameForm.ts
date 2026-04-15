@@ -88,8 +88,9 @@ export function useCreateGameForm() {
       // and winner-picks either isn't on or this is the first hole of a nine.
       const showCustomWord = wordMode === 'custom' && (!winnerPicks || isFirstOfNine);
       // Custom per-hole start word is only visible when the nine's start
-      // word mode is 'custom'.
-      const showCustomStartWord = nineMode === 'custom';
+      // word mode is 'custom'. When Winner Picks is on, only hole 1/10
+      // need an initial start word — the winner's rule sets the rest.
+      const showCustomStartWord = nineMode === 'custom' && (!winnerPicks || isFirstOfNine);
 
       const cleaned: HoleConfig = {
         holeNumber: h.holeNumber,
@@ -119,9 +120,13 @@ export function useCreateGameForm() {
       return;
     }
 
-    // Validate custom start words for front 9
+    // Validate custom start words. With Winner Picks enabled, only Hole 1
+    // (and Hole 10 for the back 9) need an initial start word — the winner's
+    // rule drives subsequent holes.
+    const frontHoles = holes.filter(h =>
+      h.holeNumber <= 9 && (!winnerPicks || h.holeNumber === 1));
     if (startWordModeFront === 'custom') {
-      for (const hole of holes.filter(h => h.holeNumber <= 9)) {
+      for (const hole of frontHoles) {
         if (!hole.customStartWord) {
           setError(`Please enter a start word for Hole ${hole.holeNumber} or switch front 9 start word mode.`);
           return;
@@ -134,9 +139,10 @@ export function useCreateGameForm() {
       }
     }
 
-    // Validate custom start words for back 9
+    const backHoles = holes.filter(h =>
+      h.holeNumber > 9 && (!winnerPicks || h.holeNumber === 10));
     if (startWordModeBack === 'custom') {
-      for (const hole of holes.filter(h => h.holeNumber > 9)) {
+      for (const hole of backHoles) {
         if (!hole.customStartWord) {
           setError(`Please enter a start word for Hole ${hole.holeNumber} or switch back 9 start word mode.`);
           return;
